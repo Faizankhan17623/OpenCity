@@ -48,10 +48,17 @@ export function initAccessibility(w, h) {
   s.mapPalette = s.mapPalette || 'default';
   if (s.aimAssist === undefined) s.aimAssist = false;
   if (s.hudScale === undefined) s.hudScale = 1;
+  if (s.hudAutoScale === undefined) s.hudAutoScale = true;
   if (s.reduceMotion === undefined) s.reduceMotion = false;
 
   applyBinds();
   applyHudScale();
+  window.addEventListener('resize', applyHudScale);
+  // some HUD blocks (e.g. the vehicle launcher) are created after this runs
+  const scaledIds = new Set(HUD_SCALED.map(([id]) => id));
+  new MutationObserver(records => {
+    if (records.some(r => [...r.addedNodes].some(n => scaledIds.has(n.id)))) applyHudScale();
+  }).observe(document.body, { childList: true, subtree: true });
   applyMapFilter();
   world.a11y = {
     aimAssist: () => !!world.settings.aimAssist,
@@ -68,14 +75,33 @@ function applyBinds() {
   setRemap(world.settings.binds);
 }
 
+// Every HUD block, scaled about the corner or edge it is anchored to, so nothing
+// drifts off-screen. The base transform is the element's own CSS centring.
+const HUD_SCALED = [
+  ['topright', 'top right', ''], ['bottomleft', 'bottom left', ''],
+  ['speed', 'bottom right', ''], ['weapon', 'bottom right', ''], ['mission', 'top left', ''],
+  ['vehicle-launcher', 'bottom right', ''],
+  ['hint', 'bottom center', 'translateX(-50%) '], ['keysind', 'bottom center', 'translateX(-50%) '],
+  ['toast', 'top center', 'translateX(-50%) '],
+];
+
+// On screens taller than 1080 px the HUD grows with the screen (up to x1.35 at
+// 1440p and above), so it keeps its 1080p proportion instead of shrinking.
+export function hudScreenFactor(height = window.innerHeight) {
+  return Math.min(1.35, Math.max(1, height / 1080));
+}
+
 function applyHudScale() {
-  // scale the two big corner panels — cheap, non-layout-breaking
-  const tr = document.getElementById('topright');
-  const bl = document.getElementById('bottomleft');
-  const sc = world.settings.hudScale;
-  if (tr) { tr.style.transformOrigin = 'top right'; tr.style.transform = `scale(${sc})`; }
-  if (bl && !document.body.classList.contains('touch')) {
-    bl.style.transformOrigin = 'bottom left'; bl.style.transform = `scale(${sc})`;
+  const s = world.settings;
+  const sc = s.hudScale * (s.hudAutoScale ? hudScreenFactor() : 1);
+  const touch = document.body.classList.contains('touch');
+  for (const [id, origin, base] of HUD_SCALED) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    // touch layouts reposition the lower HUD around the on-screen controls: scale only the top-right panel there
+    const on = !touch || id === 'topright';
+    el.style.transformOrigin = origin;
+    el.style.transform = on ? `${base}scale(${sc})` : base.trim();
   }
 }
 
@@ -162,7 +188,8 @@ function refresh() {
     toggleRow('reduceMotion', 'Reduce camera motion', s.reduceMotion) +
     selectRow('mapPalette', 'Minimap colours', s.mapPalette,
       ['default', 'deuteranopia', 'protanopia', 'tritanopia', 'high contrast']) +
-    rangeRow('hudScale', 'HUD size', s.hudScale, 0.7, 1.4, 0.05) +
+    rangeRow('hudScale', 'HUD size', s.hudScale, 0.7, 1.5, 0.05) +
+    toggleRow('hudAutoScale', 'HUD grows on large screens (1440p+)', s.hudAutoScale) +
     section('AIM') +
     toggleRow('aimAssist', 'Aim assist (gentle target pull)', s.aimAssist) +
     section('KEY BINDINGS') +
@@ -185,7 +212,7 @@ function refresh() {
 }
 
 function onChange(key) {
-  if (key === 'hudScale') applyHudScale();
+  if (key === 'hudScale' || key === 'hudAutoScale') applyHudScale();
   if (key === 'mapPalette') applyMapFilter();
   save();
 }

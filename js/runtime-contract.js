@@ -23,8 +23,11 @@ export function createRuntime(profile) {
     }
     if (definition.asset) {
       const { url, wheels, panels = {} } = definition.asset;
-      if (typeof url !== 'string' || !url || wheels?.length !== 4 || !wheels.every(n => typeof n === 'string' && n)) {
-        throw new Error('Asset requires a URL and four wheel pivots');
+      // Cars carry four wheel pivots; a definition marked `bike` carries two
+      // (front first: car.js steers wheels[0] and leans the whole bike).
+      const wheelCount = definition.bike === true ? 2 : 4;
+      if (typeof url !== 'string' || !url || wheels?.length !== wheelCount || !wheels.every(n => typeof n === 'string' && n)) {
+        throw new Error(`Asset requires a URL and ${wheelCount} wheel pivots`);
       }
       for (const panel of Object.values(panels)) {
         if (!panel.node || !['x', 'y', 'z'].includes(panel.axis) || !Number.isFinite(panel.angle)) {
