@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { vehicleTransferBlock } from './vehicleFinance.js';
 import { blockStart } from './city.js';
 import { showToast, showNews, showMissionMsg } from './hud.js';
 import { sfxMissionPass, sfxPickup } from './sound.js';
@@ -81,14 +82,19 @@ export function updateChopShop(world, dt, pressed) {
   }
   if (d > 4 || car.tank) return;
 
+  const transferBlock=vehicleTransferBlock(world,car);
+  if(transferBlock){world.chopHint=transferBlock;return;}
   const matches = cs.want.test(car);
   const healthFrac = Math.max(0, Math.min(1, (car.health ?? 100) / 100));
-  const payout = Math.round((BASE + (matches ? BONUS : 0)) * (0.45 + 0.55 * healthFrac));
+  const offer = Math.round((BASE + (matches ? BONUS : 0)) * (0.45 + 0.55 * healthFrac));
+  const owned=world.ownedVehicles?.find(r=>r.id===car.ownedId);
+  const payout=owned?Math.min(offer,Math.floor(owned.purchasePrice*.65)):offer;
 
   world.chopHint = `CHOP SHOP — press <b>E</b> to sell this ${car.bike ? 'bike' : 'car'} ` +
     `(≈ $${payout}${matches ? ' · MATCH!' : ''}${healthFrac < 0.9 ? ' · damaged' : ''})`;
 
   if (pressed['KeyE']) {
+    if(car.ownedId){try{world.vehicleServices.sellOwned(car,payout,'Vehicle sale');}catch(error){showToast(error.message);return;}}
     // remove the vehicle from the world
     const lists = [world.parked, world.traffic, world.cops];
     for (const list of lists) {
@@ -101,7 +107,7 @@ export function updateChopShop(world, dt, pressed) {
     player.pos.set(cs.pos.x + 3, 0, cs.pos.z + 2);
     player.vy = 0;
 
-    world.money += payout;
+    if(!car.ownedId)world.money += payout;
     cs.doneToday++;
     sfxMissionPass();
     sfxPickup();

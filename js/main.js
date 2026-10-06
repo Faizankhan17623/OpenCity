@@ -1,10 +1,24 @@
+import {createRoadNetwork,planRoadRoute} from './pursuitNavigation.js';
+import { createCharacterSequenceController } from './characterSequences.js';
+import { createCampaignScenarios } from './campaignScenarios.js';
+import { createCampaignPresentation } from './campaignPresentation.js';
+import { placeCharacterInVehicle, applyCharacterAssetSuit } from './gltfChar.js';
+import { createCampaignCast, campaignArc } from './campaignCast.js';
+import { AUTHORED_WORLD_LOTS, createAuthoredWorld } from './authoredWorld.js';
+import { worldAssets } from './worldAssets.js';
+import { loadAsset } from './assetLoader.js';
+import { initCampaign } from './campaign.js';
+import { CAMPAIGN_LOCATIONS, campaignMission } from './campaignContent.js';
+import { initVehicleAuctions } from './vehicleAuctions.js';
+import { createRenderResolution, computeRenderSize } from './renderResolution.js';
+import { componentEffects, applyVehicleDamage } from './vehicleComponents.js';
 import * as THREE from 'three';
 import { solidDistance, createWeaponModel, equipCharacter, poseWeapon, muzzlePosition } from './combat-view.js';
 import { initInput, endFrame, pollGamepad, keys, pressed, mouse } from './input.js';
 import { buildCity, resolveCircle, pointBlocked, groundHeight, blockStart, BLOCK, HALF, N } from './city.js';
-import { createCharacter, animateWalk, animateIdle, animateLand, resetArticulation, updateCharacterDetail, CHARACTERS } from './characters.js';
+import { createCharacter, animateWalk, animateIdle, animateLand, resetArticulation, updateCharacterDetail, updateCharacterAnimation, CHARACTERS } from './characters.js';
 import { makeVehicle, physStep, separateCars, darkenCar, updateVehicleDetail } from './car.js';
-import { updateVehicleAsset, vehicleControls, setVehiclePanel } from './gltfVehicle.js';
+import { updateVehicleAsset, vehicleControls, setVehiclePanel, vehicleControlHint, helicopterControls } from './gltfVehicle.js';
 import { runtime } from './runtime.js';
 import { describeVehicle } from './vehicleFuel.js';
 import { spawnPeds, updatePeds, killPed, spawnTraffic, updateTraffic, disableTraffic, spawnParked } from './npc.js';
@@ -18,7 +32,11 @@ import { initMissions, updateMissions, failMission, mission } from './missions.j
 import { initWeather, updateWeather } from './weather.js';
 import { buildLandmarks, updateLandmarks } from './landmarks.js';
 import { initWeb, fireWeb, releaseWeb, swingStep, updateWebVisual, poseSwing, poseFall } from './web.js';
-import { initShops, updateShops, ensureGarageVehicle, garageCheck } from './shops.js';
+import { initShops, updateShops, ensureGarageVehicle, garageCheck, applyGarageMods } from './shops.js';
+import { initOwnedVehicles, ownedVehicleSnapshot, findVehicleSpace } from './ownedVehicles.js';
+import { initVehicleServices } from './vehicleServices.js';
+import { initVehiclePanel } from './vehiclePanel.js';
+import { tickNitro } from './nitroStation.js';
 import { initTouch, isTouch, showTouchUI, showKioskButtons, showContextButtons, setTouchMode } from './touch.js';
 import { initMenu, openMenu, closeMenu, openMap, closeMap, drawBigMap } from './menu.js';
 import { vibrate, goFullscreen, keepAwake, grabCanvas, saveOrShare, openCamera, closeCamera, cameraSupported } from './device.js';
@@ -94,7 +112,7 @@ import { initArmsdealer, updateArmsdealer } from './armsdealer.js';
 import { initDruglab, updateDruglab, endDruglab } from './druglab.js';
 import { initVendors, updateVendors } from './vendors.js';
 import { initAtms, updateAtms } from './atm.js';
-import { initBanking, updateBanking, bankingSave, awardMoney } from './banking.js';
+import { initBanking, updateBanking, bankingSave, awardMoney, bankingBusy } from './banking.js';
 import { initPayphones, updatePayphones, endPhoneJob } from './payphone.js';
 import { initPigeons, updatePigeons } from './pigeons.js';
 import { initGraffiti, updateGraffiti } from './graffiti.js';
@@ -157,8 +175,8 @@ import { initArmor, updateArmor } from './armor.js';
 import { initFishing, updateFishing } from './fishing.js';
 import { initNightclub, updateNightclub } from './nightclub.js';
 import { initSkateboard, updateSkateboard } from './skateboard.js';
-import { resolveTier, tierSpec, createEnvironment, createShadowRig, createPostChain } from './graphics.js';
-import { bootActiveSlot, mirrorActiveSlot, buildSlotPicker } from './saveslots.js';
+import { resolveTier, tierSpec, createEnvironment, createShadowRig, createPostChain, createEntityActivity } from './graphics.js';
+import { bootActiveSlot, mirrorActiveSlot, buildSlotPicker, readActiveSave, commitActiveSave, suspendSaveWrites } from './saveslots.js';
 import { initCloudSave, cloudSaveTick, scheduleCloudPush } from './cloudsave.js';
 import { initReplay, recordReplay, updateReplay, openReplay, closeReplay, replayActive } from './replay.js';
 import { initAccessibility, openAccessibility } from './accessibility.js';
@@ -169,14 +187,16 @@ import { initNpcMemory, updateNpcMemory } from './npcmemory.js';
 import { initPhotoBounty, updatePhotoBounty, photoBountySave } from './photobounty.js';
 
 // Point the game's single save key at the active slot before anything reads it.
-bootActiveSlot();
+await bootActiveSlot();
+const loadingStage=async(label,completed)=>{window.dispatchEvent(new CustomEvent('open-city-loading',{detail:{label,completed}}));await new Promise(resolve=>requestAnimationFrame(resolve));};
+await loadingStage('Save selected; preparing renderer',1);
 
 // ---------- renderer / scene ----------
 
 // Graphics tier is decided once from the saved settings + a device probe.
 // `gfx` (the spec) gates every heavy feature from here on.
 const gfxTier = resolveTier((() => {
-  try { return runtime.settings(JSON.parse(localStorage.getItem(runtime.saveKeys.live) || '{}') || {}); }
+  try { return runtime.settings(readActiveSave()); }
   catch { return {}; }
 })());
 let gfx = tierSpec(gfxTier);
@@ -184,9 +204,10 @@ let gfx = tierSpec(gfxTier);
 const renderer = new THREE.WebGLRenderer({ antialias: gfxTier !== 'low', powerPreference: 'high-performance' });
 // Count the whole post-processing frame, rather than only its final screen pass.
 renderer.info.autoReset = false;
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(gfx.dpr);
-renderer.shadowMap.enabled = true;
+const initialRenderSize=computeRenderSize({width:window.innerWidth,height:window.innerHeight,dpr:window.devicePixelRatio||1,policy:runtime.profile.graphics,settings:runtime.settings(readActiveSave())});
+renderer.setPixelRatio(1);
+renderer.setSize(initialRenderSize.width,initialRenderSize.height,false);
+renderer.shadowMap.enabled = gfxTier !== 'low';
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; // film-grade color response
 renderer.toneMappingExposure = 1.05;
@@ -217,19 +238,17 @@ const shadowRig = createShadowRig(scene, camera, sun, gfxTier);
 // code can breathe its strength with the city lights.
 const post = createPostChain(renderer, scene, camera, gfxTier, {
   ao: (() => {
-    try { return !!JSON.parse(localStorage.getItem(runtime.saveKeys.live) || '{}').settings?.ao; }
+    try { return !!readActiveSave().settings?.ao; }
     catch { return false; }
   })(),
 });
 const composer = post.composer;
 const bloom = post.bloom;
 
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  post.setSize(window.innerWidth, window.innerHeight);
-});
+let resolutionSettings=runtime.settings(readActiveSave());
+const resolution=createRenderResolution({renderer,camera,post,policy:runtime.profile.graphics,settings:()=>resolutionSettings});
+resolution.resize();
+window.addEventListener('resize',()=>resolution.resize());
 
 // ---------- world ----------
 
@@ -237,7 +256,8 @@ window.addEventListener('resize', () => {
 // city and landmarks add. Their meshes never move; recomputing their world
 // matrices every frame was ~10% of frame time once the district kit landed.
 const preCityChildren = new Set(scene.children);
-const city = buildCity(scene);
+await loadingStage('Renderer ready; building neighbourhood',2);
+const city = buildCity(scene,{authoredLots:AUTHORED_WORLD_LOTS});
 const landmarks = buildLandmarks(scene, city);
 for (const child of scene.children) {
   if (preCityChildren.has(child)) continue;
@@ -249,6 +269,8 @@ for (const child of scene.children) {
   });
 }
 
+const authoredWorld = createAuthoredWorld({scene,city,assets:worldAssets,loadAsset});
+city.authoredWorld = authoredWorld;
 const sky = createSkyDome(scene);
 const weather = initWeather(scene);
 initEffects(scene);
@@ -269,7 +291,7 @@ scene.add(chuteMesh);
 // persistent progress
 const SAVE_KEY = runtime.saveKeys.live;
 let save = {};
-try { save = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}') || {}; } catch { save = {}; }
+save = readActiveSave();
 
 // every new player starts with a $5,000 bank balance
 const STARTING_CASH = 5000;
@@ -277,7 +299,7 @@ const isNewPlayer = save.money === undefined;
 
 // chosen playable character (saved between sessions)
 const charDef = CHARACTERS.find((c) => c.key === save.char) || CHARACTERS[0];
-const playerChar = createCharacter(charDef.colors);
+const playerChar = createCharacter({...charDef.colors,asset:'kai',animationManaged:true});
 playerChar.group.userData.stableRoot = true;
 scene.add(playerChar.group);
 
@@ -305,15 +327,17 @@ const player = {
 player.pos.copy(city.spawn);
 
 const world = {
+  economyPolicy: runtime.profile.economy,
+  camera,
   scene,
   city,
   player,
   // Crowd/traffic counts scale with the graphics setting. Each pedestrian is
   // an articulated rig (~15 meshes); 100 of them was a big slice of the
   // per-frame scene-graph walk. Low graphics thins the city a lot.
-  peds: spawnPeds(scene, city, save.settings?.lowGfx ? 34 : 64),
-  traffic: spawnTraffic(scene, city, save.settings?.lowGfx ? 16 : 24),
-  parked: spawnParked(scene, save.settings?.lowGfx ? 22 : 34),
+  peds: spawnPeds(scene, city, gfxTier === 'low' ? 34 : 64),
+  traffic: spawnTraffic(scene, city, gfxTier === 'low' ? 16 : 24),
+  parked: spawnParked(scene, gfxTier === 'low' ? 22 : 34),
   cops: [],
   helis: [],
   policeHelis: [],
@@ -356,6 +380,10 @@ const world = {
   slowmoT: 0,
 };
 world.level = 1 + Math.floor(Math.sqrt(world.xp / 120));
+world.settings.gfxTier ||= world.settings.lowGfx ? 'low' : 'auto';
+world.settings.lowGfx = gfxTier === 'low';
+world.activity = createEntityActivity(world, camera, gfxTier);
+world.activity.registerStatic(scene.children.filter(child => !preCityChildren.has(child) && !child.matrixAutoUpdate));
 // Keep the new model close to the start, beside the central road.
 const starter = runtime.profile.starterVehicle;
 world.starterSedan = makeVehicle(scene, city.spawn.x + starter.offsetX, city.spawn.z + starter.offsetZ, 0,
@@ -381,6 +409,7 @@ let heliRespawnT = 0;
 // missions + saved progress
 initMissions(scene, world, save.missions || 0);
 const shopsState = initShops(scene, world, save.upg, save.mods);
+initOwnedVehicles(world, save, applyGarageMods);
 const gang = initGang(scene, world, save.gang);
 const flocks = initAmbient(scene);
 const stuntsState = initStunts(scene, world);
@@ -605,6 +634,8 @@ const wpMarker = new THREE.Group();
 
 function applySettings() {
   const st = world.settings;
+  st.lowGfx = resolveTier(st) === 'low';
+  resolutionSettings=st;resolution.applySettings();
   setMasterVolume(st.volume);
   // The shadow rig and post chain (including the AO pass) are built once at
   // startup, so a tier change (lowGfx) or an AO toggle takes effect on the
@@ -613,11 +644,16 @@ function applySettings() {
   saveGame();
 }
 
+resolutionSettings=world.settings;
 initMenu({
+  profile: runtime.profile,
+  graphics:()=>resolution.snapshot(),
   settings: world.settings,
   onSettings: applySettings,
+  onCloseMap: closeBigMap,
   onResume: resumeGame,
-  onRestart: () => { closeMenu(); respawn(); gameState = 'play'; showTouchUI(isTouch); },
+  onRestart: () => { closeMenu(); if(campaignService?.status().active){campaignService.fail('Retry the saved checkpoint.');campaignService.retry();}else respawn(); gameState = 'play'; showTouchUI(isTouch); },
+  onStory:()=>{closeMenu();gameState='play';vehiclePanel.openStory();},
   onPhoto: enterPhotoMode,
   onAccessibility: () => { closeMenu(); openAccessibility(); },
   onCamera: () => {
@@ -629,6 +665,7 @@ initMenu({
   cameraSupported: cameraSupported(),
   onWaypoint: (x, z) => {
     world.waypoint = new THREE.Vector3(Math.max(-HALF, Math.min(HALF, x)), 0, Math.max(-HALF, Math.min(HALF, z)));
+    world.destinationLabel = null;
     wpMarker.position.set(world.waypoint.x, 0, world.waypoint.z);
     wpMarker.visible = true;
     closeBigMap();
@@ -749,13 +786,17 @@ function updatePhoto(dt) {
 }
 
 function saveGame() {
+  if(world.campaignReplay)return false;
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
+    commitActiveSave({
       money: world.money, missions: mission.done, mg: ammo.mg, rpg: ammo.rpg,
       sg: ammo.sg, sn: ammo.sn, gren: ammo.gren,
       upg: world.upgrades, gang: { owned: gang.owned, kills: gang.kills }, radio: world.radioSt,
       garage: world.garageKind, garageVehicle: describeVehicle(shopsState.garageVeh),
       fuelVersion: 2, starterSedan: describeVehicle(world.starterSedan),
+      vehicleInventory: ownedVehicleSnapshot(world), vehicleReceipts: world.vehicleReceipts,
+      auctions: world.auctions, campaign: world.campaign,
+      introJob: world.introJob,
       xp: world.xp, stats: world.stats, ach: world.ach,
       tokens: world.tokensGot,
       suit: world.suit, suits: world.suitsOwned, settings: world.settings,
@@ -817,12 +858,95 @@ function saveGame() {
       bhuntDay: world.bhunt?.caughtDay,
       ...rideHailSave(world),
       ...photoBountySave(world),
-    }));
-    mirrorActiveSlot(); // keep the active save slot in sync with the live save
-    scheduleCloudPush(); // debounced upload to the server if signed in
-  } catch {}
+    });
+    // The live snapshot is committed. Optional mirrors must not report that
+    // transaction as failed and cause a caller to roll back only memory.
+    try {
+      mirrorActiveSlot();
+      scheduleCloudPush();
+    } catch { /* live local save remains authoritative */ }
+    return true;
+  } catch { return false; }
 }
+await loadingStage('Neighbourhood ready; restoring services',3);
 world.onSave = saveGame;
+const vehicleServices = initVehicleServices(world, shopsState, save, { enterCar, exitCar });
+const auctionService=initVehicleAuctions(world,save);
+let campaignService=null;
+const playerSequence=createCharacterSequenceController(player.ch,{onError:e=>showToast(e.message)});world.characterSequences=playerSequence;
+const storyDestinations=new Map();let storyRoadNetwork=null;
+function storyLocation(id,missionId,stage){
+  const driving=stage?.type==='drive',key=id+':'+driving;
+  if(storyDestinations.has(key))return storyDestinations.get(key).clone();
+  const sockets={workshop:['mendez-garage','socket_workshop_pad'],office:['mendez-garage','socket_office_door'],hotel:['flamingo-hotel',driving?'socket_dropoff':'socket_entrance'],flats:['marina-apartments','socket_entrance'],parts:['marina-shops','socket_shop_2']};
+  let pos=sockets[id]?authoredWorld.socket(...sockets[id]):null;
+  if(id==='showroom'||id==='auction')pos=world.dealerPos;
+  if(id==='bank')pos=driving?authoredWorld.socket('harbour-bank','socket_entrance'):authoredWorld.bankSockets().find(s=>s.name==='socket_loan_desk')?.pos;
+  if(id==='bank'&&!pos)pos=world.bank?.machines?.find(m=>!m.dead)?.pos;
+  if(id==='petrol')pos=world.gas?.stations?.find(s=>s.authored)?.pos||world.gas?.stations?.[0]?.pos;
+  if(!pos){const def=CAMPAIGN_LOCATIONS[id];if(!def)return null;const xs=city.roadXs,zs=city.roadZs;pos=new THREE.Vector3(xs[Math.round(def.road[0]/10*(xs.length-1))]+3,0,zs[Math.round(def.road[1]/10*(zs.length-1))]+3);}
+  const origin=pos.clone(),padding=driving?1.8:.5;
+  // Destinations depend on permanent geometry. Parked cars and the player must
+  // never push a meeting marker away while the arrival check is running.
+  const solids=city.colliders.filter(c=>!c.scenario);
+  for(let radius=0;radius<=24;radius++){
+    for(let i=0;i<(radius?32:1);i++){
+      const point=origin.clone().add(new THREE.Vector3(Math.sin(i*Math.PI/16)*radius,0,Math.cos(i*Math.PI/16)*radius));
+      point.y=groundHeight(point,solids,.25,0);
+      if(pointBlocked(point.clone().setY(point.y+.9),solids,padding))continue;
+      if(driving){
+        storyRoadNetwork ||= createRoadNetwork(city.roadXs,solids);
+        const route=planRoadRoute(point,point,storyRoadNetwork,solids);
+        if(!route.length||Math.hypot(route.at(-1).x-point.x,route.at(-1).z-point.z)>.1)continue;
+      }
+      storyDestinations.set(key,point);return point.clone();
+    }
+  }
+  throw Error('The story meeting at '+id+' has no accessible entrance.');
+}
+const campaignScenarios=createCampaignScenarios(world,{getActive:()=>campaignService?.progress(),resolveLocation:storyLocation,workVehicle:()=>campaignService?.workVehicle(),fail:reason=>campaignService?.fail(reason),beforeRemoveVehicle:car=>{if(player.inCar===car)exitCar();}});
+world.campaignScenarios=campaignScenarios;
+campaignService=initCampaign(world,save,{
+  navigate:vehicleServices.navigate,resolveLocation:storyLocation,
+  readiness:(stage,mission)=>campaignScenarios.readiness(stage,mission),
+  interact:details=>campaignScenarios.interact(details),checkpoint:()=>campaignScenarios.checkpoint(),
+  scenarioVehicle:(mission,stage)=>campaignScenarios.requestVehicle(mission,stage),
+  reset(){playerSequence.cancel('story-reset');campaignScenarios.reset();},
+  beforeReplay(){
+    if(bankingBusy())throw Error('Wait for the current bank transaction to finish before replaying.');
+    if(saveGame()!==true)throw Error('Save your current progress before starting a memory replay.');
+    world.campaignReplay=true;suspendSaveWrites();
+  },
+  afterReplay(){location.reload();},
+  retry({stage}){
+    campaignScenarios.recoverVehicle?.();
+    if(player.inCar)exitCar();player.health=world.maxHealth;player.vel.set(0,0,0);player.vy=0;player.onGround=true;
+    world.wanted=0;world.wantedTimer=0;world.busted=false;world.bustedT=0;clearCops(world);
+    for(const h of world.policeHelis)scene.remove(h.mesh);world.policeHelis.length=0;
+    if(stage?.position){player.pos.copy(stage.position);resolveCircle(player.pos,.5,city.colliders);}
+    player.mesh.visible=true;player.mesh.rotation.set(0,player.heading,0);hideBanner();renderer.domElement.style.filter='';gameState='play';
+  },
+  presentAction({action}){if(!player.inCar)playerSequence.start(action.kind==='inspect'?'inspect_crouch':'handover_give');campaignCast.presentAction(action);},
+  provideVehicle({vehicle,missionId}){
+    const p=findVehicleSpace(world,player.pos,vehicle==='bike'?.9:1.6);
+    const car=makeVehicle(scene,p.x,p.z,0,'#5f9a85',{temporary:true,bike:vehicle==='bike',accel:18,top:40});
+    car.campaignLoaner=missionId;world.parked.push(car);return car;
+  },
+  releaseVehicle(car){
+    if(player.inCar===car)exitCar();
+    if(campaignScenarios.ownsVehicle(car))return;
+    scene.remove(car.mesh);for(const list of [world.parked,world.traffic,world.cops]){const i=list?.indexOf(car);if(i>=0)list.splice(i,1);}
+  },
+});
+if(campaignService.status().active)campaignService.requestVehicle();
+const campaignCast=createCampaignCast(world);world.campaignCast=campaignCast;
+const storyPresentation=createCampaignPresentation(world,{camera,resumePointer:()=>{if(!isTouch&&gameState==='play')renderer.domElement.requestPointerLock?.()?.catch?.(()=>{});}});
+world.storyPresentation=storyPresentation;
+
+const vehiclePanel = initVehiclePanel(world, vehicleServices, {
+  isPlaying: () => gameState === 'play',
+  resumePointer: () => { if (!isTouch) renderer.domElement.requestPointerLock?.()?.catch?.(() => {}); },
+});
 
 // player-car headlights at night (persistent light => no shader recompiles)
 const headlight = new THREE.SpotLight(0xffeecb, 0, 55, 0.62, 0.45, 1.4);
@@ -980,7 +1104,7 @@ function updateCamera(dt) {
   const sens = world.settings.sens || 1;
   const inv = world.settings.invertY ? -1 : 1;
   camYaw -= mouse.dx * 0.0024 * sens;
-  camPitch = Math.max(firstPerson ? -1.35 : -0.35, Math.min(firstPerson ? 1.35 : 0.75, camPitch + mouse.dy * 0.0018 * sens * inv));
+  camPitch = Math.max(onFootView() ? -1.35 : -0.35, Math.min(onFootView() ? 1.35 : 0.75, camPitch + mouse.dy * 0.0018 * sens * inv));
   if (keys['ArrowLeft']) camYaw += 1.8 * dt;
   if (keys['ArrowRight']) camYaw -= 1.8 * dt;
 
@@ -1071,12 +1195,15 @@ function updateCamera(dt) {
       camera.lookAt(_camTarget);
     } else {
       camPos.lerp(_camDesired, 1 - Math.exp(-11 * dt));
+      camPos.y=Math.max(player.pos.y+.25,camPos.y);
       const anchor = _muzzle.copy(player.pos); anchor.y += 1.65;
       _cameraRay.copy(camPos).sub(anchor);
       const length = _cameraRay.length(); _cameraRay.normalize();
       const clear = solidDistance(anchor, _cameraRay, city.colliders, length, .18);
       camPos.copy(anchor).addScaledVector(_cameraRay, Math.max(0, clear - .06));
-      camera.position.copy(camPos); camera.lookAt(_camTarget);
+      camera.position.copy(camPos);
+      _camTarget.copy(camPos).add(_cameraRay.set(Math.sin(camYaw)*Math.cos(camPitch),-Math.sin(camPitch),Math.cos(camYaw)*Math.cos(camPitch)));
+      camera.lookAt(_camTarget);
     }
   }
 
@@ -1330,7 +1457,7 @@ function updateOnFoot(dt) {
   // parapet grind: hold Shift along a rooftop edge to skate it
   if (player.onGround && player.pos.y > 5 && (keys['ShiftLeft'] || keys['ShiftRight'])) {
     const c = city.colliders.find((c) =>
-      Math.abs(c.h - 0.3 - player.pos.y) < 0.6 &&
+      Math.abs((c.roofY ?? (c.h - 0.3)) - player.pos.y) < 0.6 &&
       player.pos.x > c.x0 - 0.5 && player.pos.x < c.x1 + 0.5 &&
       player.pos.z > c.z0 - 0.5 && player.pos.z < c.z1 + 0.5);
     if (c) {
@@ -1417,7 +1544,7 @@ function updateOnFoot(dt) {
   }
   if (pressed.F2) {
     firstPerson = !firstPerson;
-    camPitch = Math.max(-.35, Math.min(.75, camPitch));
+    camPitch = Math.max(-1.35, Math.min(1.35, camPitch));
     showToast(firstPerson ? 'FIRST PERSON — Ctrl aim · wheel weapons · F2 camera' : 'THIRD PERSON — Ctrl aim · wheel weapons · F2 camera');
   }
 
@@ -1543,7 +1670,7 @@ function updateOnFoot(dt) {
   else setHint(null);
   if (pressed['KeyE']) {
     if (nearHeli) enterHeli(nearHeli);
-    else if (nearVeh) enterCar(nearVeh);
+    else if (nearVeh) beginEnterCar(nearVeh);
     else if (nearBoat) enterBoat(nearBoat);
     else if (world.cardsHint) enterCards();
   }
@@ -1649,6 +1776,26 @@ function findNearestHeli(maxDist) {
   return best;
 }
 
+function sequenceDoor(vehicle,name,amount){
+ const panel=vehicle.asset?.panels[name];if(!panel)return;
+ panel.open=amount>0;panel.node.rotation[panel.axis]=panel.closedAngle+panel.angle*amount;
+}
+function beginEnterCar(vehicle){
+ if(playerSequence.active?.kind.startsWith('weapon-'))playerSequence.cancel('vehicle-entry');
+ if(playerSequence.busy)return;
+ vehicle.vel.set(0,0,0);
+ if(!playerSequence.start('vehicle-enter',{vehicle,commitOnStart:true,setDoor:sequenceDoor,onCommit:()=>enterCar(vehicle),onComplete:()=>placeCharacterInVehicle(player.ch,vehicle)}))enterCar(vehicle);
+}
+function beginExitCar(){
+ const vehicle=player.inCar;if(!vehicle||playerSequence.busy)return;
+ vehicle.vel.set(0,0,0);
+ if(playerSequence.start('vehicle-exit',{vehicle,setDoor:sequenceDoor,onCommit:({position})=>{exitCar();player.pos.copy(position);resolveCircle(player.pos,.5,city.colliders);},onComplete:()=>{player.mesh.position.copy(player.pos);}}))playerSequence.finish();
+ else exitCar();
+}
+function beginFuelSequence(vehicle){
+ if(playerSequence.busy)return;
+ playerSequence.start('fuel',{vehicle,onComplete:()=>placeCharacterInVehicle(player.ch,player.inCar),onCancel:()=>placeCharacterInVehicle(player.ch,player.inCar)});
+}
 function enterCar(v) {
   let idx = world.parked.indexOf(v);
   if (idx >= 0) world.parked.splice(idx, 1);
@@ -1667,7 +1814,7 @@ function enterCar(v) {
   }
   v.ai = null;
   player.inCar = v;
-  if (v.asset) showToast('SEDAN · [ doors · ] bonnet · \\ boot · = headlights (panels: stop first)');
+  if (v.asset) showToast(vehicleControlHint(v));
   player.mesh.visible = false;
   setHint(null);
   camYaw = v.heading;
@@ -1689,6 +1836,7 @@ function exitCar() {
   player.vy = 0;
   player.mesh.visible = true;
   player.heading = car.heading;
+  player.mesh.rotation.set(0,car.heading,0);
   player.inCar = null;
   car.refuelling = false;
   setVehiclePanel(car, 'Fuel_Flap', false);
@@ -1802,8 +1950,11 @@ function melee() {
     const dz = pos.z - player.pos.z;
     return dx * dx + dz * dz < reach * reach && (dx * _fwd.x + dz * _fwd.z) > 0;
   };
-  let hit = false;
-  for (const p2 of world.peds) {
+  let hit = false,storyHit=false;
+  for(const actor of world.campaignActors||[]){
+    if(!actor.dead&&actor.mesh.visible&&inRange(actor.pos)){campaignScenarios.damageActor(actor,30*combo);hit=storyHit=true;break;}
+  }
+  if(!hit) for (const p2 of world.peds) {
     if (!p2.dead && inRange(p2.pos)) { killPed(world, p2, true); hit = true; break; }
   }
   if (!hit) for (const m of world.gangPeds) {
@@ -1820,7 +1971,7 @@ function melee() {
     for (const group of [world.traffic, world.parked, world.cops]) {
       for (const v of group) {
         if (v.dead || !inRange(v.pos)) continue;
-        v.health -= 12 * combo * (world.perks.melee ?? 1) * (player.charDef.melee ?? 1);
+        applyVehicleDamage(v,12 * combo * (world.perks.melee ?? 1) * (player.charDef.melee ?? 1),{kind:'melee'});
         addSparks(v.pos.clone().setY(1), 6);
         sfxCrash(8);
         if (v.health <= 0) {
@@ -1835,8 +1986,7 @@ function melee() {
   }
   if (hit) {
     sfxCrash(6 + combo * 2);
-    addStyle(6 * combo);
-    addXP(10);
+    if(!storyHit){addStyle(6 * combo);addXP(10);}
     if (combo === 3) showToast('COMBO x3!');
   }
 }
@@ -2184,6 +2334,7 @@ function updateZip(dt) {
 function updateDriving(dt) {
   const car = player.inCar;
   vehicleControls(car, pressed);
+  if(pressed.KeyE&&canRefuel(world,car)&&!keys.ShiftLeft&&!keys.ShiftRight){beginFuelSequence(car);if(playerSequence.busy)return;}
   const ctl = {
     throttle: (keys['KeyW'] ? 1 : 0) + (keys['KeyS'] ? -1 : 0),
     steer: (keys['KeyA'] ? 1 : 0) + (keys['KeyD'] ? -1 : 0),
@@ -2195,15 +2346,14 @@ function updateDriving(dt) {
     else ctl.throttle = car.vel.length() < world.cruise ? 0.55 : 0;
   }
   // nitro: hold Shift for a burning speed burst (tank excluded, it's heavy enough)
-  const nitroMax = car.bigNitro ? 170 : 100; // garage nitro-tank upgrade
-  player.nitro = Math.min(nitroMax, player.nitro ?? nitroMax);
+  car.nitro ??= 100;
   car.refuelling = canRefuel(world, car) && !!keys.KeyE && !keys.KeyW && !keys.KeyS;
-  const wantsBoost = (keys['ShiftLeft'] || keys['ShiftRight']) && player.nitro > 1 && ctl.throttle > 0 && !car.tank;
+  const wantsBoost = (keys['ShiftLeft'] || keys['ShiftRight']) && car.nitro > 0 && ctl.throttle > 0 && !car.tank;
   burnFuel(world, dt, ctl.throttle, wantsBoost);
-  car.engineEnabled = hasFuel(world) && !car.refuelling;
+  car.engineEnabled = hasFuel(world) && !car.refuelling && componentEffects(car).propulsion;
   const boosting = wantsBoost && car.engineEnabled;
+  player.nitro = tickNitro(car, dt, boosting);
   if (boosting) {
-    player.nitro = Math.max(0, player.nitro - 40 * dt);
     _fwd.set(Math.sin(car.heading), 0, Math.cos(car.heading));
     car.vel.addScaledVector(_fwd, 15 * dt);
     car.nitroFxT = (car.nitroFxT || 0) - dt;
@@ -2212,8 +2362,6 @@ function updateDriving(dt) {
       addFlash(car.pos.clone().add(new THREE.Vector3(-_fwd.x * 2.1, 0.55, -_fwd.z * 2.1)), 0x66aaff, 0.5);
     }
     addStyle(4 * dt);
-  } else {
-    player.nitro = Math.min(nitroMax, player.nitro + (car.bigNitro ? 14 : 9) * dt);
   }
 
   // wet roads shave grip (weather_hazards.js); H toggles the for-hire light
@@ -2272,8 +2420,8 @@ function updateDriving(dt) {
     const imp = separateCars(car, t, false);
     if (imp > 5) {
       // garage ram spikes: hit harder, hurt less
-      car.health -= (imp - 5) * (car.spikes ? 0.7 : 1.4);
-      t.health -= imp * (car.spikes ? 6 : 2.5);
+      applyVehicleDamage(car,(imp - 5) * (car.spikes ? 0.7 : 1.4));
+      applyVehicleDamage(t,imp * (car.spikes ? 6 : 2.5));
       if (car.spikes) addSparks(t.pos.clone().setY(0.8), 8);
       sfxCrash(imp);
       world.shake = Math.min(0.5, imp * 0.025);
@@ -2284,8 +2432,8 @@ function updateDriving(dt) {
   for (const p of world.parked) {
     const imp = separateCars(car, p, false);
     if (imp > 5) {
-      car.health -= (imp - 5) * (car.spikes ? 0.6 : 1.2);
-      p.health -= imp * (car.spikes ? 5 : 2);
+      applyVehicleDamage(car,(imp - 5) * (car.spikes ? 0.6 : 1.2));
+      applyVehicleDamage(p,imp * (car.spikes ? 5 : 2));
       if (car.spikes) addSparks(p.pos.clone().setY(0.8), 8);
       sfxCrash(imp);
       world.shake = Math.min(0.5, imp * 0.025);
@@ -2311,7 +2459,7 @@ function updateDriving(dt) {
   // E refuels before exiting when parked at a pump.
   const atPump = canRefuel(world, car) && !keys.ShiftLeft && !keys.ShiftRight;
   if (pressed['KeyE'] && !atPump) {
-    if (car.vel.length() < 5) exitCar();
+    if (car.vel.length() < 5) beginExitCar();
     else showToast('Slow down to exit!');
   }
 }
@@ -2359,6 +2507,7 @@ function updateBoating(dt) {
 
 function updateFlying(dt) {
   const h = player.inHeli;
+  helicopterControls(h,pressed);
   const ctl = {
     fwd: (keys['KeyW'] ? 1 : 0) + (keys['KeyS'] ? -1 : 0),
     yaw: (keys['KeyA'] ? 1 : 0) + (keys['KeyD'] ? -1 : 0),
@@ -2412,6 +2561,7 @@ function bailOut() {
 function updateHelis(dt) {
   for (let i = world.helis.length - 1; i >= 0; i--) {
     const h = world.helis[i];
+    if (h.sleeping && h !== player.inHeli && !h.dead) continue;
     if (h.dead) {
       if (h === player.inHeli) continue;
       if (updateFallingHeli(world, h, dt)) world.helis.splice(i, 1);
@@ -2495,7 +2645,13 @@ function shoot() {
   playerMuzzle(_muzzle);
   addFlash(_muzzle.clone(), 0xffd080, .22);
   world.lastShot = { pos: player.pos.clone(), t: world.time };
-  if (world.wanted === 0 && !world.gunMods?.silencer) addCrime(world, 1);
+  const defendingStory=(world.campaignActors||[]).some(actor=>{
+    if(!actor.hostile||actor.dead||!actor.mesh.visible)return false;
+    const origin=camera.position,target=actor.pos.clone().add(new THREE.Vector3(0,1.1,0));
+    const distance=raySphere(origin,_rayDir,target,.95);
+    return distance>=0&&distance<Math.min(80,solidDistance(origin,_rayDir,city.colliders,80));
+  });
+  if (world.wanted === 0 && !world.gunMods?.silencer&&!defendingStory) addCrime(world, 1);
 
   if (w.rocket) {
     fireRocket();
@@ -2517,7 +2673,7 @@ function applyAimAssist() {
   if (!world.a11y?.aimAssist()) return;
   _rayOrigin.copy(camera.position);
   let best = null, bestDot = 0.985; // ~10° cone
-  for (const group of [world.gangPeds, world.cops, world.targets, world.tanks]) {
+  for (const group of [world.gangPeds, world.cops, world.targets, world.tanks,(world.campaignActors||[]).filter(a=>a.hostile&&a.mesh.visible)]) {
     for (const t of group || []) {
       if (!t || t.dead) continue;
       _aaTo.set(t.pos.x, t.pos.y + (t.aimY ?? 1.1), t.pos.z).sub(_rayOrigin);
@@ -2544,10 +2700,10 @@ function fireBullet(w) {
   const RANGE = 80;
   let aimDistance = solidDistance(_rayOrigin, _rayDir, city.colliders, RANGE);
   // Resolve crosshair parallax at the nearest entity, not a point behind it.
-  for (const group of [world.peds, world.gangPeds, world.cops, world.traffic, world.parked, world.tanks, world.policeHelis, world.helis, world.targets]) {
+  for (const group of [world.peds, world.gangPeds, world.cops, world.traffic, world.parked, world.tanks, world.policeHelis, world.helis, world.targets, world.campaignActors||[]]) {
     for (const target of group) {
-      if (target.dead) continue;
-      const human = group === world.peds || group === world.gangPeds;
+      if (target.dead||target.scenarioManaged&&!target.mesh.visible) continue;
+      const human = group === world.peds || group === world.gangPeds || target.scenarioManaged&&!!target.char;
       const air = group === world.policeHelis || group === world.helis;
       const extra = group === world.targets;
       const height = human ? 1.1 : air ? 1.8 : extra ? (target.aimY ?? 0) : .8;
@@ -2597,17 +2753,26 @@ function fireBullet(w) {
     if (t < bestT) { bestT = t; hitTarget = tg; hitPed = null; hitGang = null; hitVeh = null; hitHeli = null; }
   }
 
+  let hitStory=null;
+  for(const actor of world.campaignActors||[]){
+    if(actor.dead||!actor.mesh.visible)continue;
+    const distance=raySphere(_rayOrigin,_rayDir,_sphere.set(actor.pos.x,actor.pos.y+1.1,actor.pos.z),.85);
+    if(distance>=0&&distance<bestT){bestT=distance;hitStory=actor;}
+  }
   _hitPoint.copy(_rayOrigin).addScaledVector(_rayDir, bestT);
   const muzzle = _rayOrigin.clone();
   addTracer(muzzle, _hitPoint.clone());
   addFlash(_hitPoint.clone(), 0xffd080, 0.35);
 
-  if (hitPed) {
+  if(hitStory){
+    campaignScenarios.damageActor(hitStory,w.dmg);
+    if(!hitStory.hostile)addCrime(world,1);
+  } else if (hitPed) {
     killPed(world, hitPed, true);
   } else if (hitGang) {
     killGangMember(world, hitGang); // gang war, no heat
   } else if (hitVeh) {
-    hitVeh.health -= w.dmg;
+    applyVehicleDamage(hitVeh,w.dmg,{kind:'gunfire'});
     if (hitVeh.health <= 0) {
       if (hitVeh.tank) killTank(world, hitVeh);
       else if (hitVeh.police) copDie(world, hitVeh);
@@ -2722,6 +2887,11 @@ function updateGrenades(dt) {
 }
 
 function explodeRocket(pos) {
+  for(const actor of world.campaignActors||[]){
+    if(actor.dead||!actor.mesh.visible)continue;
+    const distance=actor.pos.distanceTo(pos);
+    if(distance<7){campaignScenarios.damageActor(actor,(7-distance)*25);if(!actor.hostile)addCrime(world,1);}
+  }
   addExplosion(pos);
   world.scars?.boom(pos);
   world.shake = 0.5;
@@ -2731,7 +2901,7 @@ function explodeRocket(pos) {
       if (v.dead || v === player.inCar) continue;
       const d = Math.hypot(v.pos.x - pos.x, v.pos.z - pos.z) + Math.abs(pos.y - 1);
       if (d < 9) {
-        v.health -= (9 - d) * (v.tank ? 14 : 25);
+        applyVehicleDamage(v,(9 - d) * (v.tank ? 14 : 25),{kind:'explosion'});
         if (v.health <= 0) {
           if (v.tank) killTank(world, v);
           else if (v.police) copDie(world, v);
@@ -2766,7 +2936,7 @@ function explodeRocket(pos) {
   }
   if (player.inCar) {
     const d = player.inCar.pos.distanceTo(pos);
-    if (d < 7) player.inCar.health -= (7 - d) * 12;
+    if (d < 7) applyVehicleDamage(player.inCar,(7 - d) * 12,{kind:'explosion'});
   }
 }
 
@@ -2961,6 +3131,7 @@ function applyCharacter(c) {
 
 // recolor the player rig to a character's palette (reuses the wardrobe path)
 function applySuitColors(colors) {
+  applyCharacterAssetSuit(player.ch,colors);
   const g = player.ch;
   const set = (mesh, col) => { if (col && mesh) mesh.material.color.set(col); };
   set(g.group.children[0], colors.shirt);
@@ -2971,7 +3142,7 @@ function applySuitColors(colors) {
   set(g.rLeg.children[0], colors.pants);
 }
 
-document.getElementById('playbtn').addEventListener('click', () => {
+function beginPlay(lockPointer=true) {
   startEl.style.display = 'none';
   initSound();
   siren.start();
@@ -2979,16 +3150,41 @@ document.getElementById('playbtn').addEventListener('click', () => {
   cityHum.start();
   chase.start();
   applySettings();
-  if (gameState === 'start') gameState = 'play';
-  if (!isTouch) renderer.domElement.requestPointerLock?.();
-  else {
+  if (gameState === 'start') {
+    gameState = 'play';
+    showStickyKeysHintOnce();
+  }
+  if (!isTouch&&lockPointer) renderer.domElement.requestPointerLock?.()?.catch?.(()=>{});
+  else if(isTouch) {
     goFullscreen(); // phones: immersive landscape
     keepAwake();    // and no screen dimming mid-chase
   }
   showTouchUI(true);
-});
+}
+
+const STICKY_KEYS_HINT_KEY = 'oc.stickyKeysHintSeen';
+function showStickyKeysHintOnce() {
+  if (!/Win/i.test(navigator.userAgent || '')) return;
+  try {
+    if (localStorage.getItem(STICKY_KEYS_HINT_KEY) === '1') return;
+    localStorage.setItem(STICKY_KEYS_HINT_KEY, '1');
+  } catch {
+    // Storage can be disabled by the browser; the hint still helps this run.
+  }
+  showToast(
+    'Playing uses Shift to sprint. If Windows shows a Sticky Keys prompt, press Shift 5 times to dismiss it, or turn it off in Settings > Accessibility > Keyboard.',
+    { duration: 8000, dismissOnClick: true }
+  );
+}
+
+document.getElementById('playbtn').addEventListener('click',()=>beginPlay());
+const storyButton=document.getElementById('storybtn');
+if(storyButton){
+  storyButton.textContent=world.campaign?.active?'CONTINUE STORY':'STORY';
+  storyButton.addEventListener('click',()=>{beginPlay(false);vehiclePanel.openStory();});
+}
 document.addEventListener('pointerlockchange', () => {
-  if (!document.pointerLockElement && !isTouch && gameState === 'play' && !world.bankUiOpen) pauseGame();
+  if (!document.pointerLockElement && !isTouch && gameState === 'play' && !world.bankUiOpen && !world.vehicleUiOpen && !world.storyUiOpen) pauseGame();
 });
 
 // ---------- main loop ----------
@@ -3012,8 +3208,38 @@ const disasterHooks = { boom: (pos) => explodeRocket(pos), explode: (v) => explo
 
 let prevHealth = 100;
 let saveT = 0;
+let campaignPoll = .25, characterArc = 1;
 
 function update(dt) {
+  if (world.vehicleUiOpen) return;
+  world.activity.update();
+  if(gameState==='play'){
+    campaignPoll += dt;
+    if(campaignPoll >= .25){
+      characterArc = campaignArc(campaignService.status().mission,world.campaign?.completed);
+      campaignPoll = 0;
+    }
+    campaignCast.update(dt);
+    if(storyPresentation.update(dt,pressed)){
+      updateCharacterAnimation(player.ch,dt,{speed:0,grounded:true,talking:campaignService.currentStage()?.dialogue?.speaker==='KAI'});
+      playerSequence.update(dt);updateHUD(world);return;
+    }
+    if(!playerSequence.busy&&player.onGround&&!player.inCar&&!player.inHeli&&!player.inBoat&&!player.inPlane&&!firstPerson&&player.ch.asset){
+      const raised=!!aiming();
+      if(raised!==!!player.ch.asset.weaponRaised)playerSequence.start(raised?'weapon-draw':'weapon-holster');
+    }
+    // Entry visuals may finish at rest, but never hold the driving/exit keys.
+    if(playerSequence.active?.kind==='vehicle-enter'&&(keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD||keys.Space||pressed.KeyE))playerSequence.finish();
+    if(playerSequence.locksMovement){
+      const active=playerSequence.active;
+      if(active.vehicle)updateVehicleAsset(active.vehicle,dt,!!player.inCar);
+      if(active.kind==='fuel'){
+        if(!keys.KeyE||!canRefuel(world,active.vehicle))playerSequence.release();
+        updateGasStations(world,dt,{KeyE:!!keys.KeyE&&active.phase==='hold'});
+      }
+      playerSequence.update(dt);updateCamera(dt);updateHUD(world);return;
+    }
+  }
   if (world.bankUiOpen) { updateBanking(world, dt, keys, pressed); return; }
   world.time += dt;
   city.district?.update(player.pos, world.settings.lowGfx);
@@ -3105,7 +3331,7 @@ function update(dt) {
 
   // autosave every 10s
   saveT += dt;
-  if (saveT > 10) { saveT = 0; saveGame(); }
+  if (saveT > 10) { saveT = 0; if(!world.campaignReplay)saveGame(); }
   cloudSaveTick(); // debounced upload after saveGame(), if signed in
 
   if (gameState === 'over') {
@@ -3143,7 +3369,7 @@ function update(dt) {
   updateTraffic(world, dt);
   updatePolice(world, dt);
   for (const list of [world.parked, world.traffic, world.cops]) {
-    for (const v of list) updateVehicleAsset(v, dt);
+    for (const v of list) if (!v.sleeping && !v.scenarioManaged) updateVehicleAsset(v, dt);
   }
   if (player.inCar) updateVehicleAsset(player.inCar, dt, true, !!(keys.KeyS || keys.Space));
 
@@ -3153,7 +3379,7 @@ function update(dt) {
     const low = world.settings.lowGfx;
     if (world.perf.detailTick(1)) {
       for (const group of [world.traffic, world.parked, world.cops]) {
-        for (const v of group) updateVehicleDetail(v, focus, low);
+        for (const v of group) if (!v.sleeping) updateVehicleDetail(v, focus, low);
       }
     }
     if (player.inCar) updateVehicleDetail(player.inCar, focus, low, !!(keys['KeyS'] || keys['Space']));
@@ -3328,7 +3554,7 @@ function update(dt) {
       world.phoneHint || world.pizzaHint || world.repoHint || world.newsHint ||
       world.copHint || world.slipHint || world.boatraceHint || world.icetruckHint ||
       world.bribeHint || world.mwHint || world.jewelryHint || world.casinoHint2;
-    setHint(world.gasHint || drivingHint || null);
+    setHint(world.nitroHint || world.gasHint || drivingHint || null);
   }
   // ...and from the cockpit or the deep
   if (player.inPlane) setHint(world.planeHint || null);
@@ -3388,6 +3614,12 @@ function update(dt) {
     if (_sphere.z > 1) b.sy = -999; // behind the camera
   }
 
+  vehicleServices.update(dt);
+  auctionService.update(dt);
+  campaignScenarios.update(dt);
+  campaignService.update(dt);
+  wpMarker.visible = !!world.waypoint;
+  if (world.waypoint) wpMarker.position.set(world.waypoint.x, 0, world.waypoint.z);
   // waypoint arrival
   if (world.waypoint) {
     wpMarker.rotation.y += dt;
@@ -3443,24 +3675,33 @@ function update(dt) {
   recoilT = Math.max(0, recoilT - dt);
   if (onFootView() && aiming()) {
     player.mesh.rotation.y = camYaw;
-    poseWeapon(player.ch, true, recoilT * 8, camPitch);
+
   }
+  poseWeapon(player.ch,onFootView()&&aiming(),recoilT*8,camPitch);
+  if(!playerSequence.busy)placeCharacterInVehicle(player.ch,player.inCar);
+  if(player.mesh.visible&&!firstPerson)updateCharacterAnimation(player.ch,dt,{speed:Math.hypot(player.vel.x,player.vel.z),grounded:player.onGround,verticalSpeed:player.vy,landing:player.landT>0,vehicle:player.inCar,refuelling:false,arc:characterArc,interval:world.activity.animationInterval});
+  playerSequence.update(dt);
+  authoredWorld.update(player.pos,{visibleDistance:world.activity.radius});
   updateSiren();
   if (world.photoBoardHint && !world.mission?.active) setHint(world.photoBoardHint);
   updateHUD(world);
 
+  if(campaignService.status().active&&(player.health<=0||world.busted)){campaignService.fail(player.health<=0?'Kai cannot continue. Retry the saved checkpoint.':'The mission was interrupted by an arrest. Retry the saved checkpoint.');return;}
   if (player.health <= 0) triggerOver('WASTED', '#c0392b');
   else if (world.busted) triggerOver('BUSTED', '#4a8cff');
 }
 
 let introT = 0;
-const _introFrom = new THREE.Vector3(HALF * 0.55, 130, HALF * 0.55);
+const _introFrom = city.spawn.clone().add(new THREE.Vector3(16,16,24));
 const _introTo = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
+  vehiclePanel.update();
   pollGamepad();
-  let dt = Math.min(clock.getDelta(), 0.05);
+  const frameSeconds=clock.getDelta();
+  resolution.sample(frameSeconds,gameState==='play'&&!world.bankUiOpen&&!world.vehicleUiOpen);
+  let dt = Math.min(frameSeconds, 0.05);
   updatePerf(dt); // rolling frame-time governor + FPS meter (real, unscaled dt)
 
   // dramatic slow-mo: dying, or the level-6 airborne aim skill
@@ -3476,9 +3717,9 @@ function animate() {
     // slow flyover of the skyline behind the menu
     introT += dt * 0.05;
     const t = Math.min(1, introT);
-    _introTo.set(city.spawn.x + 20, 26, city.spawn.z + 46);
+    _introTo.set(city.spawn.x + 9, 7, city.spawn.z + 14);
     camera.position.lerpVectors(_introFrom, _introTo, t * (2 - t));
-    camera.lookAt(city.spawn.x, 8, city.spawn.z);
+    camera.lookAt(city.spawn.x, 1, city.spawn.z);
   } else if (gameState === 'photo') {
     updatePhoto(dt);
   } else if (gameState === 'replay') {
@@ -3498,10 +3739,11 @@ function animate() {
     camera.rotation.x += Math.sin(t * 0.0013) * 0.04;
   }
   renderer.info.reset();
-  if (gameState !== 'play' || world.bankUiOpen) {
+  if (gameState !== 'play' || world.bankUiOpen || world.vehicleUiOpen || world.storyUiOpen || playerSequence.locksMovement) {
     viewHands.visible = false;
     document.getElementById('crosshair').style.display = 'none';
   }
+  world.activity.fog();
   composer.render();
   if (world.captureNext) {
     world.captureNext = false;
@@ -3512,7 +3754,18 @@ function animate() {
   endFrame();
 }
 
-animate();
+// Cull before the first draw: invisible neighbourhoods must not compile every
+// material/shadow variant while the loading screen is still holding the menu.
+camera.position.copy(_introFrom);camera.lookAt(city.spawn.x,1,city.spawn.z);
+world.activity.update();world.activity.fog();
+await loadingStage('Preparing nearby graphics',3);
+// EffectComposer's world passes draw into a linear render target. Compile with
+// that target active so the first visible render reuses its output-color-space
+// variants instead of synchronously compiling them on the input frame.
+renderer.setRenderTarget(composer.readBuffer);
+await renderer.compileAsync(scene,camera);
+renderer.setRenderTarget(null);
+await loadingStage('Ready to play',4);
 
 // debug handle for automated testing
 window.__debug = {
@@ -3615,3 +3868,4 @@ window.__debug = {
   gunMods: () => world.gunMods,
   storm: () => world.storm,
 };
+requestAnimationFrame(animate);

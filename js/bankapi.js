@@ -6,6 +6,10 @@
 // and can be overridden with ?bankapi=<url> for local testing against 3099.
 
 import { runtime } from './runtime.js';
+import { canWriteSave } from './saveslots.js';
+let pendingWrites=0;
+export function pendingOnlineWrites(){return pendingWrites;}
+function requireWrite(){if(!canWriteSave())throw Error('Online changes are unavailable while saving is locked or during memory replay.');}
 
 const enabled = runtime.profile.services?.bank !== false;
 const params = new URLSearchParams(location.search);
@@ -26,6 +30,9 @@ let online = false;
 
 async function call(path, { method = 'GET', body, auth = true } = {}) {
   if (!enabled) throw new Error('Online banking is unavailable in this build');
+  const mutating=method.toUpperCase()!=='GET';
+  if(mutating){requireWrite();pendingWrites++;}
+  try{
   const headers = { 'Content-Type': 'application/json' };
   if (auth && cred?.token) headers.Authorization = 'Bearer ' + cred.token;
   const res = await fetch(BASE + path, {
@@ -37,6 +44,7 @@ async function call(path, { method = 'GET', body, auth = true } = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { status: res.status, data });
   return data;
+  }finally{if(mutating)pendingWrites--;}
 }
 
 export function isLinked() { return !!cred?.token; }
@@ -49,6 +57,9 @@ export function handle() { return cred?.handle || null; }
 // full path from the origin, e.g. '/api/save/0'.
 export async function apiCall(path, { method = 'GET', body } = {}) {
   if (!enabled) throw new Error('Online services are unavailable in this build');
+  const mutating=method.toUpperCase()!=='GET';
+  if(mutating){requireWrite();pendingWrites++;}
+  try{
   const headers = { 'Content-Type': 'application/json' };
   if (cred?.token) headers.Authorization = 'Bearer ' + cred.token;
   const res = await fetch((override || '') + path, {
@@ -60,9 +71,11 @@ export async function apiCall(path, { method = 'GET', body } = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { status: res.status, data });
   return data;
+  }finally{if(mutating)pendingWrites--;}
 }
 
 function persist() {
+  requireWrite();
   try { localStorage.setItem(LS_KEY, JSON.stringify(cred)); } catch {}
 }
 
@@ -91,7 +104,7 @@ export async function login(name, token) {
   return r;               // { account_no, balance }
 }
 
-export function unlink() { cred = null; try { localStorage.removeItem(LS_KEY); } catch {} }
+export function unlink() { requireWrite(); cred = null; try { localStorage.removeItem(LS_KEY); } catch {} }
 
 export async function getAccount()      { return call('/account'); }
 export async function history(limit = 20) { return call(`/history?limit=${limit}`); }

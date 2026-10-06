@@ -42,9 +42,9 @@ function rayBox(o, d, c) {
     tmin = Math.max(tmin, Math.min(lo, hi));
     tmax = Math.min(tmax, Math.max(lo, hi));
   }
-  if (Math.abs(d.y) < 1e-8) { if (o.y < 0 || o.y > c.h) return Infinity; }
+  if (Math.abs(d.y) < 1e-8) { if (o.y < (c.y0 ?? 0) || o.y > c.h) return Infinity; }
   else {
-    lo = -o.y / d.y;
+    lo = ((c.y0 ?? 0) - o.y) / d.y;
     hi = (c.h - o.y) / d.y;
     tmin = Math.max(tmin, Math.min(lo, hi));
     tmax = Math.min(tmax, Math.max(lo, hi));

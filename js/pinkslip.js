@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { vehicleTransferBlock } from './vehicleFinance.js';
 import { roadCenter, blockStart, N, pointBlocked } from './city.js';
 import { makeVehicle } from './car.js';
 import { showToast, showMissionMsg } from './hud.js';
@@ -56,6 +57,8 @@ export function updatePinkslip(world, dt, pressed) {
     if (!car) return;
     const d = Math.hypot(car.pos.x - ps.startPos.x, car.pos.z - ps.startPos.z);
     if (d < 10) {
+      const transferBlock=vehicleTransferBlock(world,car);
+      if(transferBlock){world.slipHint=transferBlock;return;}
       const rv = RIVALS[ps.rank];
       world.slipHint = `PINK SLIPS vs <b>${rv.name}</b> — quarter-mile in under ${rv.time}s · press <b>E</b>… no wait, <b>1</b> to launch`;
       world.nearKiosk = true;

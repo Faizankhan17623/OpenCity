@@ -1,146 +1,80 @@
-// Save slots — three independent save files instead of one.
-//
-// The game reads and writes one localStorage key (`opencity-save-v1`). This
-// module sits UNDER that: it keeps three stored blobs
-// (`opencity-slot-0/1/2`) plus a pointer (`opencity-active-slot`), and before
-// the game boots it copies the active slot's blob into `opencity-save-v1`.
-// From then on the game saves normally; `mirrorActiveSlot()` copies each save
-// back into the active slot's key so nothing is lost.
-//
-// This runs BEFORE js/main.js reads its save, so it has to be imported first
-// in index.html (a tiny inline module) or at the very top of main.js.
-
 import { runtime } from './runtime.js';
+import { createSaveStorage, parseSave } from './saveStorage.js';
 
 const { live: LIVE_KEY, slot: SLOT_KEY, active: ACTIVE_KEY, name: NAME_KEY } = runtime.saveKeys;
 export const SLOT_COUNT = 3;
-
-function lsGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
-function lsDel(k) { try { localStorage.removeItem(k); } catch {} }
-
-export function activeSlot() {
-  const n = parseInt(lsGet(ACTIVE_KEY) || '0', 10);
-  return Number.isInteger(n) && n >= 0 && n < SLOT_COUNT ? n : 0;
-}
-
-export function slotName(i) {
-  return lsGet(NAME_KEY(i)) || `SLOT ${i + 1}`;
-}
-
-export function setSlotName(i, name) {
-  const clean = String(name || '').trim().slice(0, 18);
-  if (clean) lsSet(NAME_KEY(i), clean); else lsDel(NAME_KEY(i));
-}
-
-// A compact summary of a slot's blob for the start-screen cards.
-export function slotSummary(i) {
-  const raw = lsGet(SLOT_KEY(i));
-  if (!raw) return null;
-  try {
-    const s = JSON.parse(raw);
-    return {
-      empty: false,
-      money: s.money | 0,
-      bank: s.bank | 0,
-      missions: s.missions | 0,
-      level: 1 + Math.floor(Math.sqrt((s.xp | 0) / 120)),
-      char: s.char || 'weaver',
-      crowned: !!s.crowned,
-      packages: (s.tokens || []).length,
-    };
-  } catch { return { empty: false, corrupt: true }; }
-}
-
-// Called once, as early as possible, before the game reads its save.
-export function bootActiveSlot() {
-  const i = activeSlot();
-  const blob = lsGet(SLOT_KEY(i));
-  if (blob != null) {
-    lsSet(LIVE_KEY, blob);
-  } else {
-    // First time this slot is used: start it from whatever is live (covers
-    // players upgrading from the pre-slots single save), else empty.
-    const live = lsGet(LIVE_KEY);
-    lsSet(SLOT_KEY(i), live != null ? live : '{}');
+const store = createSaveStorage(localStorage, runtime.saveKeys, runtime.profile.id);
+let bootSnapshot = {}, bootError = null, booted = false, releaseLock;
+const lsGet = k => localStorage.getItem(k);
+const lsSet = (k,v) => store.setMetadata(k,v);
+const lsDel = k => store.setMetadata(k,null);
+const validSlot = i => { if (!Number.isInteger(i) || i < 0 || i >= SLOT_COUNT) throw Error('Invalid slot.'); };
+export function activeSlot() { if (booted) return store.loadedSlot; const n = Number(lsGet(ACTIVE_KEY) || 0); return Number.isInteger(n) && n >= 0 && n < SLOT_COUNT ? n : 0; }
+export function slotName(i) { validSlot(i); return lsGet(NAME_KEY(i)) || 'SLOT ' + (i+1); }
+export function setSlotName(i,name) { validSlot(i); const n=String(name||'').trim().slice(0,18); if(n)lsSet(NAME_KEY(i),n);else lsDel(NAME_KEY(i)); }
+export function suspendSaveWrites(reason) { store.suspend(reason); }
+export function canWriteSave() { return store.writable && !bootError; }
+export function readActiveSave() { return structuredClone(bootSnapshot); }
+export async function bootActiveSlot() {
+  const i=activeSlot(); let owns=false;
+  if(navigator.locks?.request) {
+    owns=await new Promise(resolve=>{
+      navigator.locks.request('open-city-save:'+runtime.profile.id,{mode:'exclusive',ifAvailable:true},lock=>{
+        resolve(!!lock); if(lock)return new Promise(release=>{releaseLock=release;});
+      }).catch(()=>resolve(false));
+    });
+  }
+  try { bootSnapshot=parseSave(store.boot(i,owns),{allowEmpty:true}); }
+  catch(e) { bootError=e.message; bootSnapshot={}; }
+  booted=true;
+  window.addEventListener('pagehide',()=>{store.invalidate();releaseLock?.();});
+  window.addEventListener('pageshow',e=>{if(e.persisted)location.reload();});
+  if(bootError || !owns) {
+    const banner=document.createElement('div');banner.id='save-warning';banner.setAttribute('role','alert');
+    banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10000;background:#572c26;color:white;padding:12px;text-align:center;font:15px system-ui';
+    banner.textContent=bootError?'Save could not be loaded: '+bootError+' Use a slot recovery copy or import a backup. Progress is protected.':navigator.locks?'Another game tab owns saving. Close it and reload this tab before playing.':'This browser cannot lock saves safely. Open the game in a current browser on localhost or HTTPS.';
+    document.body.append(banner);
   }
 }
-
-// Called by main.js right after each saveGame() so the slot mirrors the live
-// save. Cheap string copy.
-export function mirrorActiveSlot() {
-  const live = lsGet(LIVE_KEY);
-  if (live != null) lsSet(SLOT_KEY(activeSlot()), live);
+export function commitActiveSave(snapshot) {
+  if(bootError)throw Error('Recover the unreadable save before playing.');
+  const copy=structuredClone(snapshot); store.commit(copy); bootSnapshot=copy; return true;
 }
-
-// Switch slots. Mirrors the current live save first, then swaps and reloads —
-// a reload is by far the safest way to re-seed 168 modules' state.
-export function switchToSlot(i) {
-  if (i === activeSlot()) return;
-  mirrorActiveSlot();
-  lsSet(ACTIVE_KEY, String(i));
-  const blob = lsGet(SLOT_KEY(i));
-  lsSet(LIVE_KEY, blob != null ? blob : '{}');
-  location.reload();
+export function mirrorActiveSlot() { /* canonical slots are already durable */ }
+export function switchToSlot(i) { validSlot(i); if(i===activeSlot())return;store.activate(i);location.reload(); }
+export function slotSummary(i) {
+  const raw=store.readSlot(i);if(!raw)return null;
+  try { const s=parseSave(raw,{allowEmpty:true});if(!Object.keys(s).some(k=>k!=='_save'))return null;
+    return {empty:false,money:s.money||0,bank:s.bank||0,missions:s.missions||0,level:1+Math.floor(Math.sqrt((s.xp||0)/120)),char:s.char||'weaver',crowned:!!s.crowned,packages:(s.tokens||[]).length};
+  }catch{return {empty:false,corrupt:true};}
 }
-
-export function copySlot(from, to) {
-  if (from === to) return;
-  const blob = lsGet(SLOT_KEY(from));
-  lsSet(SLOT_KEY(to), blob != null ? blob : '{}');
-  const nm = lsGet(NAME_KEY(from));
-  if (nm) lsSet(NAME_KEY(to), nm + ' COPY');
-  if (to === activeSlot()) lsSet(LIVE_KEY, blob != null ? blob : '{}');
+export function previewSaveImport(text) {
+  const data=parseSave(text),warnings=[]; const sourceEdition=data._save?.edition || 'legacy';
+  if(sourceEdition!==runtime.profile.id)warnings.push('Create a '+runtime.profile.id+' copy of this '+sourceEdition+' save. The original is preserved.');
+  const descriptors=[data.starterSedan,data.garageVehicle,...(data.lockup||[]),...(data.vehicleInventory||[]).map(r=>r?.descriptor)].filter(Boolean);
+  for(const d of descriptors)if(d.modelId && !runtime.vehicle(d.modelId)) {
+    warnings.push('Unavailable model '+d.modelId+' will use the starter vehicle appearance. Ownership, fuel, damage and loan records are retained.');
+    d.sourceModelId=d.modelId;d.modelId=runtime.profile.starterVehicle.modelId;
+  }
+  const presets=runtime.profile.graphics.resolutionHeights || [720,900,1080];
+  if(data.settings?.renderHeight && !presets.includes(data.settings.renderHeight)) { data.settings.renderHeight=presets[0];warnings.push('Render resolution reset to a supported preset.'); }
+  delete data._save;
+  return {data,warnings:[...new Set(warnings)],summary:'Cash $'+(data.money||0)+' · Bank $'+(data.bank||0)+' · Missions '+(data.missions||0)};
 }
-
-export function deleteSlot(i) {
-  lsDel(SLOT_KEY(i));
-  lsDel(NAME_KEY(i));
-  if (i === activeSlot()) { lsSet(LIVE_KEY, '{}'); location.reload(); }
-}
-
+export function confirmSaveImport(text) { const p=previewSaveImport(text);return confirm(p.summary+'\n'+p.warnings.join('\n')+'\nReplace the selected slot? A recovery copy will be kept.'); }
+export function importIntoSlot(i,text) { const p=previewSaveImport(text);store.replace(i,p.data,{source:text});if(i===activeSlot())location.reload(); }
+export function copySlot(from,to) {validSlot(from);validSlot(to);if(from===to)return;const raw=store.readSlot(from);if(!raw)throw Error('Source slot is empty.');store.replace(to,parseSave(raw,{allowEmpty:true}),{source:raw});if(to===activeSlot())location.reload();}
+export function deleteSlot(i) { store.replace(i,{}); if(i===activeSlot())location.reload(); }
+export function recoverSlot(i) { store.recover(i);if(i===activeSlot())location.reload(); }
+export function hasRecovery(i) { validSlot(i);return !!lsGet(store.backup(i)); }
 export function exportSlot(i) {
-  const data = lsGet(SLOT_KEY(i)) || '{}';
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
-  a.download = `open-city-${slotName(i).toLowerCase().replace(/\s+/g, '-')}.json`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  const raw=store.readSlot(i)||'{}',a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([raw],{type:'application/json'}));a.download='open-city-slot-'+(i+1)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
 }
-
-export function importIntoSlot(i, text) {
-  JSON.parse(text); // throws if not JSON — caller catches
-  lsSet(SLOT_KEY(i), text);
-  if (i === activeSlot()) lsSet(LIVE_KEY, text);
-}
-
-// ---------- cloud-save support ----------
-// cloudsave.js reads/writes slot blobs and remembers the last synced server
-// revision per slot so it can detect conflicts.
-
-const CLOUD_REV_KEY = runtime.saveKeys.cloudRev;
-
-export function slotBlob(i) {
-  const raw = lsGet(SLOT_KEY(i));
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-export function writeSlotBlob(i, obj) {
-  const text = JSON.stringify(obj);
-  lsSet(SLOT_KEY(i), text);
-  if (i === activeSlot()) lsSet(LIVE_KEY, text);
-}
-
-export function slotCloudRev(i) {
-  const n = parseInt(lsGet(CLOUD_REV_KEY(i)) || '0', 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-export function setSlotCloudRev(i, rev) {
-  lsSet(CLOUD_REV_KEY(i), String(rev | 0));
-}
-
+export function slotBlob(i) { const raw=store.readSlot(i);return raw?parseSave(raw,{allowEmpty:true}):null; }
+export function writeSlotBlob(i,obj,cloudRevision=0) { const raw=JSON.stringify(obj);store.replace(i,parseSave(raw),{source:raw,cloudRevision}); }
+export function slotCloudRev(i) {validSlot(i);const saved=slotBlob(i)?._save;let metadata;try{metadata=JSON.parse(lsGet(runtime.saveKeys.cloudRev(i))||'0');}catch{}return metadata?.epoch===(saved?.cloudEpoch||0)?metadata.rev:(saved?.cloudRevision||0);}
+export function setSlotCloudRev(i,rev) { validSlot(i);lsSet(runtime.saveKeys.cloudRev(i),JSON.stringify({rev:Math.max(0,Math.trunc(rev)||0),epoch:slotBlob(i)?._save?.cloudEpoch||0})); }
 export { SLOT_COUNT as CLOUD_SLOT_COUNT };
 
 // ---------- start-screen UI ----------
@@ -165,6 +99,7 @@ export function buildSlotPicker(container, cloud = null) {
   for (let i = 0; i < SLOT_COUNT; i++) {
     const sum = slotSummary(i);
     const card = document.createElement('div');
+    card.tabIndex=0; card.setAttribute('role','group');card.setAttribute('aria-label',slotName(i));
     card.style.cssText =
       'width:150px;padding:10px 9px;cursor:pointer;transition:all .15s;' +
       'background:rgba(8,15,24,.72);border:1px solid rgba(140,170,190,.2);' +
@@ -188,19 +123,22 @@ export function buildSlotPicker(container, cloud = null) {
       }
     }
     card.innerHTML =
-      `<div style="font:800 12px Consolas,monospace;letter-spacing:.12em;color:#eef4fb;text-transform:uppercase;margin-bottom:5px">${slotName(i)}</div>` +
+      `<div style="font:800 12px Consolas,monospace;letter-spacing:.12em;color:#eef4fb;text-transform:uppercase;margin-bottom:5px">${escapeText(slotName(i))}</div>` +
       body + cloudLine +
       `<div style="display:flex;gap:4px;margin-top:7px;justify-content:center;flex-wrap:wrap">` +
       `<button data-act="rename" title="Rename" style="${MINI}">✎</button>` +
       `<button data-act="export" title="Export to file" style="${MINI}">⬇</button>` +
       `<button data-act="import" title="Import from file" style="${MINI}">⬆</button>` +
+      (hasRecovery(i) ? `<button data-act="recover" title="Restore previous save" style="${MINI}">↶</button>` : '') +
       (cloudOn && remote ? `<button data-act="pull" title="Pull this save from the cloud" style="${MINI};color:#7cf78c">☁↓</button>` : '') +
       (sum && !sum.empty ? `<button data-act="copy" title="Duplicate into a free slot" style="${MINI}">⧉</button>` : '') +
       (sum && !sum.empty ? `<button data-act="delete" title="Delete" style="${MINI};color:#ff8a6a">🗑</button>` : '') +
       `</div>`;
 
     card.onclick = (e) => {
+      try {
       const act = e.target?.dataset?.act;
+      if(act === 'recover') { if(confirm('Restore the previous save in this slot? The current copy will be retained.')) {recoverSlot(i);rebuild(container,cloud);} return; }
       if (act === 'rename') {
         const nm = prompt('Slot name:', slotName(i));
         if (nm != null) { setSlotName(i, nm); rebuild(container); }
@@ -214,8 +152,8 @@ export function buildSlotPicker(container, cloud = null) {
           const f = input.files?.[0];
           if (!f) return;
           f.text().then((t) => {
-            try { importIntoSlot(i, t); rebuild(container); }
-            catch { alert('That file is not a valid OPEN CITY save.'); }
+            try { if(!confirmSaveImport(t))return; importIntoSlot(i, t); rebuild(container,cloud); }
+            catch(e) { alert(e.message); }
           });
         };
         input.click();
@@ -237,7 +175,7 @@ export function buildSlotPicker(container, cloud = null) {
         return;
       }
       if (act === 'delete') {
-        if (confirm(`Delete "${slotName(i)}" permanently?`)) { deleteSlot(i); rebuild(container, cloud); }
+        if (confirm(`Clear "${slotName(i)}"? A recovery copy will be kept.`)) { deleteSlot(i); rebuild(container, cloud); }
         return;
       }
       if (act === 'pull') {
@@ -251,9 +189,13 @@ export function buildSlotPicker(container, cloud = null) {
       }
       // plain click on the card = make it active
       if (i !== activeSlot()) switchToSlot(i);
+      } catch(e) { alert(e.message); }
     };
+    card.onkeydown=e=>{if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();card.click();}};
     row.appendChild(card);
   }
+  const legacy=localStorage.getItem('opencity-save-v1');
+  if(legacy){const b=document.createElement('button');b.textContent='Import legacy progress into selected slot';b.onclick=()=>{try{if(confirmSaveImport(legacy))importIntoSlot(activeSlot(),legacy);}catch(e){alert(e.message)}};wrap.append(b);}
   container.prepend(wrap);
 }
 
@@ -266,3 +208,5 @@ function rebuild(container, cloud = null) {
   document.getElementById('slotpick')?.remove();
   buildSlotPicker(container, cloud);
 }
+
+function escapeText(text){return String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

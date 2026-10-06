@@ -5,7 +5,7 @@ import { sfxMissionPass } from './sound.js';
 import { addExplosion } from './effects.js';
 import { makeVehicle } from './car.js';
 import { blockStart, BLOCK } from './city.js';
-import { mirrorActiveSlot } from './saveslots.js';
+import { activeSlot, slotBlob, importIntoSlot, confirmSaveImport } from './saveslots.js';
 
 // The Legend board (L): every way to conquer the city on one checklist.
 // Finish the lot and the city crowns you — a golden crown, $50,000, and
@@ -223,7 +223,7 @@ function build() {
   exp.textContent = '💾 EXPORT SAVE';
   style(exp, 'linear-gradient(180deg,#7ecbff,#3d8fd0)');
   exp.onclick = () => {
-    const data = localStorage.getItem(hooks.saveKey) || '{}';
+    const data = JSON.stringify(slotBlob(activeSlot()) || {});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
     a.download = 'open-city-save.json';
@@ -243,12 +243,8 @@ function build() {
       if (!file) return;
       file.text().then((text) => {
         try {
-          JSON.parse(text); // sanity: must at least be JSON
-          localStorage.setItem(hooks.saveKey, text);
-          // Mirror into the active save slot too: bootActiveSlot() copies the
-          // slot over the live key on load, which would otherwise discard this
-          // import on the reload below.
-          mirrorActiveSlot();
+          if (!confirmSaveImport(text)) return;
+          importIntoSlot(activeSlot(), text);
           showToast('Save imported — reloading');
           setTimeout(() => location.reload(), 600);
         } catch {

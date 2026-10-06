@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import { resolveCircle, pointBlocked, groundHeight, HALF } from './city.js';
+import { resolveCircle, groundHeight, HALF } from './city.js';
+import { segmentClear, outsideCamera, dispatchDue, selectAirSpawn, flightAltitude, safeFlightMove } from './pursuitNavigation.js';
 import { addExplosion, addTracer, addFlash, addSmoke } from './effects.js';
 import { addCrime } from './police.js';
+import { attachHelicopterAsset, updateHelicopterAsset } from './gltfVehicle.js';
 
 const _v = new THREE.Vector3();
 
@@ -101,7 +103,7 @@ export function makeHeli(scene, x, y, z, heading, police = false) {
   group.position.set(x, y, z);
   group.rotation.y = heading;
   scene.add(group);
-  return {
+  const heli = {
     mesh: group,
     mainRotor,
     tailRotor,
@@ -111,6 +113,7 @@ export function makeHeli(scene, x, y, z, heading, police = false) {
     heading,
     vel: new THREE.Vector3(),
     health: police ? 70 : 100,
+    maxHealth: police ? 70 : 100,
     dead: false,
     police,
     rotorSpeed: police ? 1 : 0,
@@ -121,12 +124,23 @@ export function makeHeli(scene, x, y, z, heading, police = false) {
     burst: 0,
     leaving: false,
   };
+  attachHelicopterAsset(heli);
+  return heli;
 }
 
 export function spinRotors(h, dt) {
-  // fast, realistic spin: ~12 revs/sec at full throttle, blades blur away
-  h.mainRotor.rotation.y += 78 * h.rotorSpeed * dt;
-  h.tailRotor.rotation.x += 115 * h.rotorSpeed * dt;
+  const angularSpeed = h.asset ? (h.asset.blur.operating_rpm || 390) * Math.PI / 30 : 78;
+  h.mainRotor.rotation.y += angularSpeed * h.rotorSpeed * dt;
+  h.tailRotor.rotation.x += angularSpeed * 1.48 * h.rotorSpeed * dt;
+  updateHelicopterAsset(h,dt);
+  if (h.asset?.smokeSockets.length) {
+    h.smokeT -= dt;
+    if (h.smokeT <= 0) {
+      h.smokeT = h.asset.damageState === 'Failing' ? .09 : .18;
+      h.mesh.updateMatrixWorld(true);
+      for (const socket of h.asset.smokeSockets) addSmoke(socket.getWorldPosition(new THREE.Vector3()),h.asset.damageState === 'Failing' ? 1.2 : .7);
+    }
+  }
   const s = Math.min(1, h.rotorSpeed);
   if (h.bladeMat) h.bladeMat.opacity = 1 - s * 0.62;
   if (h.blurDisc) h.blurDisc.material.opacity = s * 0.3;
@@ -186,15 +200,23 @@ export function physStepHeli(h, ctl, dt, colliders) {
 export function explodeHeli(world, h, byPlayer) {
   if (h.dead) return;
   h.dead = true;
+  h.health = 0;
+  updateHelicopterAsset(h,0);
   addExplosion(h.pos);
   h.mesh.traverse((m) => {
-    if (m.isMesh) m.material = new THREE.MeshLambertMaterial({ color: 0x141416 });
+    if (!m.isMesh) return;
+    for (const material of [m.material].flat()) {
+      material.color?.set(0x141416); material.emissive?.set(0x000000);
+      if ('roughness' in material) material.roughness = 1;
+    }
   });
   if (byPlayer && h.police) addCrime(world, 1);
 }
 
 // Dead helis tumble out of the sky; returns true once fully crashed (caller removes).
 export function updateFallingHeli(world, h, dt) {
+  h.rotorSpeed = Math.max(0,h.rotorSpeed - dt * .6);
+  spinRotors(h,dt);
   h.vel.y -= 24 * dt;
   h.heading += 3.5 * dt;
   h.mesh.rotation.y = h.heading;
@@ -213,16 +235,20 @@ export function updateFallingHeli(world, h, dt) {
 
 export function updatePoliceHelis(world, dt, hooks) {
   const player = world.player;
-  const focus = player.inHeli ? player.inHeli.pos : player.inCar ? player.inCar.pos : player.pos;
+  const focus = player.inHeli?.pos || player.inCar?.pos || player.inPlane?.pos || player.inBoat?.pos || player.pos;
+  world.camera?.updateMatrixWorld();
 
   const desired = world.wanted >= 5 ? 2 : world.wanted >= 3 ? 1 : 0;
   // boss choppers (missions) don't count toward the wanted-level quota
   const alive = world.policeHelis.filter((h) => !h.dead && !h.leaving && !h.boss).length;
-  if (alive < desired) {
-    const ang = Math.random() * Math.PI * 2;
-    const h = makeHeli(world.scene, focus.x + Math.sin(ang) * 140, 60, focus.z + Math.cos(ang) * 140, ang + Math.PI, true);
-    world.policeHelis.push(h);
-    if (hooks?.onSpawn) hooks.onSpawn();
+  if (dispatchDue(world.policeDispatch ||= {}, 'heli', dt, alive < desired, 8)) {
+    const point = selectAirSpawn({ target: focus, colliders: world.city.colliders,
+      aircraft: [...world.policeHelis, ...world.helis], hidden: (p, r) => outsideCamera(p, world.camera, r) });
+    if (point) {
+      const h = makeHeli(world.scene, point.x, point.y, point.z, point.heading, true);
+      world.policeHelis.push(h);
+      if (hooks?.onSpawn) hooks.onSpawn();
+    }
   }
   if (alive > desired) {
     for (const h of world.policeHelis) {
@@ -248,7 +274,7 @@ export function updatePoliceHelis(world, dt, hooks) {
       tx = h.pos.x + _v.x * 60;
       tz = h.pos.z + _v.z * 60;
       ty = 80;
-      if (h.pos.distanceTo(focus) > 280) {
+      if (h.pos.distanceTo(focus) > 280 && outsideCamera(h.pos, world.camera, 12)) {
         world.scene.remove(h.mesh);
         world.policeHelis.splice(i, 1);
         continue;
@@ -257,21 +283,22 @@ export function updatePoliceHelis(world, dt, hooks) {
       h.orbitA += dt * 0.45;
       tx = focus.x + Math.sin(h.orbitA) * 22;
       tz = focus.z + Math.cos(h.orbitA) * 22;
-      ty = 30;
+      ty = Math.max(38, focus.y + 25);
     }
 
-    // climb over buildings in the way
-    if (pointBlocked(_v.set(h.pos.x, h.pos.y - 8, h.pos.z), world.city.colliders, 6)) {
-      ty = Math.max(ty, h.pos.y + 15);
-    }
-
+    // Plan above roofs and sweep every movement: never pass through a facade
+    // while waiting for the altitude controller to catch up.
+    ty = Math.max(ty, flightAltitude(h.pos, { x: tx, y: ty, z: tz }, world.city.colliders, 8));
     _v.set(tx - h.pos.x, ty - h.pos.y, tz - h.pos.z);
     const dist = _v.length();
     _v.normalize();
     const speed = Math.min(30, dist * 1.1);
     h.vel.lerp(_v.multiplyScalar(speed), Math.min(1, 1.6 * dt));
-    h.pos.addScaledVector(h.vel, dt);
-    if (h.pos.y < 12) h.pos.y = 12;
+    const next = safeFlightMove(h.pos, {
+      x: h.pos.x + h.vel.x * dt, y: Math.max(12, h.pos.y + h.vel.y * dt), z: h.pos.z + h.vel.z * dt,
+    }, world.city.colliders, 6);
+    h.pos.set(next.x, next.y, next.z);
+    if (next.blocked) { h.vel.x = 0; h.vel.z = 0; h.vel.y = Math.max(10, h.vel.y); }
 
     h.heading = Math.atan2(focus.x - h.pos.x, focus.z - h.pos.z);
     h.mesh.rotation.y = h.heading;
@@ -281,6 +308,7 @@ export function updatePoliceHelis(world, dt, hooks) {
     if (!h.leaving) {
       h.shootT -= dt;
       const range = h.pos.distanceTo(focus);
+      if (range >= 70) { h.burst = 0; h.shootT = Math.max(.4, h.shootT); }
       if (h.burst > 0 && h.shootT <= 0) {
         h.burst--;
         h.shootT = 0.13;
@@ -296,17 +324,20 @@ export function updatePoliceHelis(world, dt, hooks) {
 function fireAtPlayer(world, h, focus, hooks) {
   const player = world.player;
   const from = h.pos.clone();
-  from.y -= 1;
+  from.y += 1.3;
   const aim = focus.clone();
   aim.y += 1;
   aim.x += (Math.random() - 0.5) * 4;
   aim.z += (Math.random() - 0.5) * 4;
+  // Enemy fire obeys the same solid-world cover as the player's shots.
+  if (from.distanceTo(aim) >= 70 || !segmentClear(from, aim, world.city.colliders)) return false;
   addTracer(from, aim);
   addFlash(aim, 0xffd080, 0.3);
   if (hooks?.onShot) hooks.onShot();
   if (Math.random() < 0.45) {
     if (player.inHeli) player.inHeli.health -= 7;
     else if (player.inCar) player.inCar.health -= 7;
+    else if (player.inPlane) player.inPlane.health -= 7;
     else if (!(player.dodgeT > 0)) player.health -= 6;
   }
 }

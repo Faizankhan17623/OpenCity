@@ -1,8 +1,10 @@
+import { loanPolicyText, creditCapacity, economyPolicy } from './economyPolicy.js';
 import { showToast, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass } from './sound.js';
 import * as api from './bankapi.js';
 import { CASH_CAP } from './wallet.js';
 import { clearInput, pressedModifiers } from './input.js';
+import { initBankLoans, loanSave, loanDebt, borrowLocal, repayLocal, tickBankLoans } from './bankLoans.js';
 
 // CITY BANK. Extends world.bank (created in atm.js) with an account number,
 // a cash-in-hand cap and an overlay for deposits, withdrawals and transfers.
@@ -37,6 +39,32 @@ function buildUI() {
   if (ui) return ui;
   const root = document.createElement('div');
   root.id = 'bankui';
+  const theme = document.createElement('style');
+  theme.textContent = `
+    #bankui { --bank-paper:#f4eee3; --bank-ink:#142c2f; --bank-mint:#88d4c0;
+      color:var(--bank-paper) !important;
+      background:rgba(10,26,28,.88) !important; }
+    #bankui > div { box-sizing:border-box; max-height:90vh; overflow-y:auto;
+      background:#142c2f !important; border:1px solid #718f89 !important;
+      border-top:3px solid #bb593f !important; clip-path:none !important;
+      border-radius:8px; box-shadow:0 20px 70px #0006; }
+    #bankui input { min-width:0; border-radius:4px; min-height:36px;
+      color:var(--bank-paper) !important; background:#0e2022 !important;
+      border:1px solid #718f89 !important; }
+    #bankui button { min-height:40px; border-radius:4px; clip-path:none !important;
+      background:var(--bank-mint) !important; color:var(--bank-ink) !important;
+      letter-spacing:.06em !important; }
+    #bankui button[data-act="close"] { background:transparent !important;
+      color:var(--bank-paper) !important; border:1px solid #88d4c0 !important; }
+    #bankui button:hover { filter:brightness(1.1); }
+    #bankui button:disabled { opacity:.55; cursor:default; }
+    #bankui button:focus-visible, #bankui input:focus-visible {
+      outline:3px solid #d99323; outline-offset:3px; }
+    #bankui #bank-bal { color:var(--bank-mint) !important; }
+    #bankui #bank-msg { color:#ffd494; }
+    @media (max-height:760px) { #bankui > div { padding:14px 18px !important; } }
+  `;
+  document.head.appendChild(theme);
   root.style.cssText =
     'position:fixed;inset:0;z-index:42;display:none;align-items:center;justify-content:center;' +
     'background:radial-gradient(ellipse at 50% 35%,rgba(22,52,79,.55),rgba(6,11,18,.92));' +
@@ -54,7 +82,7 @@ function buildUI() {
       <div style="display:flex;justify-content:space-between;font:800 15px Segoe UI,sans-serif;margin-bottom:14px">
         <span>BALANCE</span><span id="bank-bal" style="color:#4fe08a">$0</span></div>
       <div style="display:flex;gap:6px;margin-bottom:8px">
-        <input id="bank-amt" type="number" min="1" placeholder="amount"
+        <input id="bank-amt" type="number" min="0.01" step="0.01" placeholder="amount" aria-label="Transaction amount"
           style="flex:1;background:#0b1926;color:#eef4fb;border:1px solid #345064;padding:8px;font:700 13px Consolas,monospace">
       </div>
       <div style="display:flex;gap:6px;margin-bottom:12px">
@@ -64,12 +92,22 @@ function buildUI() {
       </div>
       <div style="font:800 10px Consolas,monospace;letter-spacing:.2em;color:#8ea6bb;margin-bottom:6px">TRANSFER TO ACCOUNT</div>
       <div style="display:flex;gap:6px;margin-bottom:12px">
-        <input id="bank-to" type="text" placeholder="account number"
+        <input id="bank-to" type="text" placeholder="account number" aria-label="Recipient account number"
           style="flex:2;background:#0b1926;color:#eef4fb;border:1px solid #345064;padding:8px;font:700 12px Consolas,monospace">
         <button data-act="xfer" style="flex:1">SEND</button>
       </div>
+      <section aria-label="Local game loans" style="margin-bottom:12px">
+        <div id="bank-debt"></div>
+        <label for="bank-loan-select">Loan to repay</label>
+        <select id="bank-loan-select" style="display:block;width:100%;max-width:100%;padding:8px;margin:6px 0;background:#142c2f;color:#f4eee3;border:1px solid #88d4c0" aria-label="Loan to repay"></select>
+        <p id="bank-loan-policy" style="font-size:12px">Local loans: 25% per played day on remaining principal. No offline interest. Sample total debt limit: $5,000.</p>
+        <div style="display:flex;gap:6px">
+          <button data-act="borrow" style="flex:1">BORROW AMOUNT</button>
+          <button data-act="repay" style="flex:1">REPAY SELECTED LOAN</button>
+        </div>
+      </section>
       <div id="bank-link" style="border-top:1px solid rgba(140,170,190,.15);padding-top:10px;margin-bottom:8px"></div>
-      <div id="bank-msg" style="min-height:16px;font:700 11px Consolas,monospace;color:#ffb648;margin-bottom:10px"></div>
+      <div id="bank-msg" role="status" aria-live="polite" style="min-height:16px;font:700 11px Consolas,monospace;color:#ffb648;margin-bottom:10px"></div>
       <button data-act="close" style="width:100%;background:transparent;color:#eef4fb;box-shadow:inset 0 0 0 1px rgba(85,230,255,.5)">CLOSE</button>
     </div>`;
   for (const b of root.querySelectorAll('button')) {
@@ -128,6 +166,18 @@ function refresh(world) {
   ui.acct.textContent = 'A/C ' + (on ? api.accountNo() : bk.account);
   ui.cash.textContent = '$' + Math.round(world.money);
   ui.bal.textContent = '$' + Math.round(on ? (bk.onlineBalance ?? 0) : bk.balance);
+  ui.root.querySelector('#bank-debt').textContent = bk.loanError || bk.loanClockError || `Loan debt: $${(loanDebt(world)/100).toFixed(2)}`;
+  for (const button of ui.root.querySelectorAll('[data-act="borrow"], [data-act="repay"]')) button.disabled = on || !!bk.loanError;
+  const selector=ui.root.querySelector('#bank-loan-select'),selected=selector.value;
+  selector.replaceChildren();
+  const loans=bk.loanError?[]:bk.loanState.loans.filter(l=>l.principalCents+l.interestCents>0);
+  loans.forEach((loan,i)=>{const option=document.createElement('option');option.value=loan.id;
+    option.textContent=(loan.kind==='vehicle'?loan.vehicleName:'General loan '+(i+1))+' - $'+((loan.principalCents+loan.interestCents)/100).toFixed(2)+' outstanding';selector.append(option);});
+  if(loans.some(l=>l.id===selected))selector.value=selected;
+  if(!loans.length){const option=document.createElement('option');option.textContent='No outstanding loans';option.value='';selector.append(option);}
+  selector.disabled=on||!!bk.loanError||!loans.length;
+  const capacity=creditCapacity(world);
+  ui.root.querySelector('#bank-loan-policy').textContent=loanPolicyText(world)+' Available credit: $'+(capacity.availableCents/100).toLocaleString()+'. Next interest day in '+Math.ceil((economyPolicy(world).daySeconds-(bk.loanSeconds%economyPolicy(world).daySeconds))/60)+' active minutes.';
   renderLinkRow();
 }
 
@@ -143,6 +193,7 @@ async function syncOnline(world) {
 }
 
 function open(world, reason) {
+  if(world.campaignReplay)return;
   buildUI();
   world_ = world;
   world.bankUiOpen = true;
@@ -160,6 +211,7 @@ async function handleClick(world, e) {
   const act = e.target.dataset?.act;
   if (!act) return;
   if (act === 'close') return close(world);
+  if (world.campaignReplay) return say('Banking is unavailable during memory replay.');
   if (busy) return;
   busy = true;
   const bk = world.bank;
@@ -168,6 +220,16 @@ async function handleClick(world, e) {
 
   try {
     if (act === 'close') return close(world);
+    if (act === 'borrow' || act === 'repay') {
+      if (online) return say('Loans are available in local banking only.');
+      const cents = Math.round(Number(ui.amt.value) * 100);
+      if (!Number.isSafeInteger(cents) || cents <= 0) return say('Enter a positive amount.');
+      if (act === 'borrow') borrowLocal(world, cents);
+      else repayLocal(world, cents, ui.root.querySelector('#bank-loan-select').value || null);
+      refresh(world);
+      say(act === 'borrow' ? `Borrowed $${(cents/100).toFixed(2)} into your bank balance.` : `Repaid $${(cents/100).toFixed(2)} from your bank balance.`);
+      return;
+    }
 
     if (act === 'reg') {
       const h = (ui.root.querySelector('#bank-handle')?.value || '').trim();
@@ -257,6 +319,7 @@ export function initBanking(world, save) {
   world.bank.account = save?.bankAcct || makeAccountNumber();
   world.bank.ledger = Array.isArray(save?.bankLedger) ? save.bankLedger : [];
   world.bank.onlineBalance = null;
+  initBankLoans(world, save);
   world.bankUiOpen = false;
   // fire-and-forget: learn whether the bank server is up
   api.probe().catch(() => {});
@@ -264,12 +327,15 @@ export function initBanking(world, save) {
 
 export function bankingSave(world) {
   const bk = world.bank;
-  return bk ? { bankAcct: bk.account, bankLedger: bk.ledger } : {};
+  return bk ? { bankAcct: bk.account, bankLedger: bk.ledger, ...loanSave(world) } : {};
 }
 
 // Route a reward. Small -> cash (capped), large -> bank. When online and
 // linked, the "bank" part goes to the real account. Returns a toast line.
+export function bankingBusy(){return busy || api.pendingOnlineWrites()>0;}
+
 export function awardMoney(world, amount, { alwaysBank = false } = {}) {
+  if(world.campaignReplay){world.money+=amount;return `+${amount} · MEMORY REPLAY`;}
   const bk = world.bank;
   const online = api.isOnline() && api.isLinked();
   const toBank = (n, why) => {
@@ -298,10 +364,12 @@ export function awardMoney(world, amount, { alwaysBank = false } = {}) {
 }
 
 export function updateBanking(world, dt, keys, pressed) {
+  if(world.campaignReplay){if(world.bankUiOpen)close(world);return;}
   const bk = world.bank;
   if (!bk) return;
+  tickBankLoans(world, dt);
 
-  if (pressed['KeyK'] && (pressedModifiers.KeyK?.shift || keys['ShiftLeft']) && !world.bankUiOpen) open(world);
+  if ((pressed['KeyK'] && (pressedModifiers.KeyK?.shift || keys['ShiftLeft']) || pressed['KeyE'] && world.bankNearby) && !world.bankUiOpen) open(world, world.bankNearby ? 'CITY BANK — enter an amount in dollars, then choose a transaction.' : '');
   if (world.bankUiOpen && pressed['Escape']) close(world);
 
   // cash cap: skim overflow into the bank, nag once

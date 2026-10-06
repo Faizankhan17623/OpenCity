@@ -25,7 +25,7 @@ function describe(v) {
 }
 
 function buildFrom(scene, desc, x, z) {
-  const opts = { modelId: desc.modelId, fuelCapacityLiters: desc.fuelCapacityLiters, fuelLiters: desc.fuelLiters };
+  const opts = { ...desc };
   if (desc.bike) opts.bike = true;
   if (desc.monster) opts.monster = true;
   if (desc.accel != null) opts.accel = desc.accel;
@@ -100,6 +100,7 @@ function ensureBayVehicles(world) {
   const lk = world.lockup;
   for (const b of lk.bays) {
     if (!b.desc) continue;
+    if (b.desc.ownedId) { b.veh = world.ownedVehicleInstances?.get(b.desc.ownedId) || null; continue; }
     if (b.veh && !b.veh.dead && world.parked.includes(b.veh)) continue;
     if (b.veh && b.veh === world.player.inCar) continue; // being driven
     b.veh = buildFrom(world.scene, b.desc, b.x, b.z);
@@ -124,7 +125,7 @@ export function updateGarageMulti(world, dt, keys, pressed) {
   const near = Math.hypot(player.pos.x - lk.base.x, player.pos.z - lk.base.z) < 16;
   if (!near) return;
 
-  if (car && !car.tank) {
+  if (car && !car.tank && !car.temporary) {
     for (let i = 0; i < lk.bays.length; i++) {
       const b = lk.bays[i];
       if (Math.hypot(car.pos.x - b.x, car.pos.z - b.z) > 3.2) continue;
@@ -145,7 +146,8 @@ export function updateGarageMulti(world, dt, keys, pressed) {
     if (!pressed['Digit' + (i + 1)]) continue;
     const b = lk.bays[i];
     if (!b.desc) { showToast(`Bay ${i + 1} is empty`); continue; }
-    if (b.veh && !b.veh.dead) {
+    if (b.desc.ownedId) { showToast('Owned vehicle - use F4 to locate or recover it'); continue; }
+    if (b.veh && !b.veh.dead && b.veh !== world.player.inCar && !b.desc.ownedId) {
       // nudge it off the pad so the player can walk into it
       b.veh.pos.x += 3;
       showToast(`BAY ${i + 1} — ${b.desc.bike ? 'bike' : 'car'} is on the forecourt`);
@@ -157,7 +159,7 @@ export function updateGarageMulti(world, dt, keys, pressed) {
 // Called from main's garage check on vehicle exit.
 export function lockupStore(world, car) {
   const lk = world.lockup;
-  if (!lk || !car || car.tank) return false;
+  if (!lk || !car || car.tank || car.temporary) return false;
   for (let i = 0; i < lk.bays.length; i++) {
     const b = lk.bays[i];
     if (Math.hypot(car.pos.x - b.x, car.pos.z - b.z) > 3.4) continue;

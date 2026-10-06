@@ -9,6 +9,14 @@ import { showNews } from './hud.js';
 import { trafficFlow } from './mayor.js';
 
 const _v = new THREE.Vector3();
+const NORMALIZE_EPSILON_SQ = 1e-8;
+
+function normalizeXZ(vector) {
+  const lengthSq = vector.x * vector.x + vector.z * vector.z;
+  if (!Number.isFinite(lengthSq) || lengthSq <= NORMALIZE_EPSILON_SQ) return vector.set(1, 0, 0);
+  const inverseLength = 1 / Math.sqrt(Math.max(lengthSq, NORMALIZE_EPSILON_SQ));
+  return vector.set(vector.x * inverseLength, 0, vector.z * inverseLength);
+}
 
 function rectCorners(r) {
   return [
@@ -17,6 +25,20 @@ function rectCorners(r) {
     new THREE.Vector3(r.x1, 0, r.z1),
     new THREE.Vector3(r.x0, 0, r.z1),
   ];
+}
+
+// Let traffic already on a closed road leave; keep approaching vehicles and
+// pedestrians outside the marshalled race route.
+function insideStoryRoad(world,x,z){
+  return (world.campaignRoadClosures||[]).some(({a,b,width})=>{
+    const dx=b.x-a.x,dz=b.z-a.z,length=dx*dx+dz*dz;
+    const u=length?Math.max(0,Math.min(1,((x-a.x)*dx+(z-a.z)*dz)/length)):0;
+    return Math.hypot(x-a.x-u*dx,z-a.z-u*dz)<(width||10)/2;
+  });
+}
+function enterStoryRoad(world,pos,x,z){return !insideStoryRoad(world,pos.x,pos.z)&&insideStoryRoad(world,x,z);}
+function movePed(world,p,direction,distance){
+  if(!enterStoryRoad(world,p.pos,p.pos.x+direction.x*distance,p.pos.z+direction.z*distance))p.pos.addScaledVector(direction,distance);
 }
 
 // ---------------- Pedestrians ----------------
@@ -75,17 +97,18 @@ export function updatePeds(world, dt) {
   const night = world.clock >= 22 || world.clock < 6;
 
   for (const p of peds) {
+    if (world.activity && !world.activity.active(p)) continue;
     const distSq = (p.pos.x - focus.x) ** 2 + (p.pos.z - focus.z) ** 2;
-    const far = distSq > animRange * animRange;
-    const hidden = distSq > PED_HIDE_RANGE * PED_HIDE_RANGE;
+    const far = distSq > animRange * animRange || (world.activity && !world.activity.shouldAnimate(p.mesh,p.pos));
+    const hidden = !world.activity && distSq > PED_HIDE_RANGE * PED_HIDE_RANGE;
     if (p.mesh.visible === hidden) p.mesh.visible = !hidden;
-    if (hidden && !p.dead && p.webT <= 0) {
+    if (hidden && !p.dead && !(p.webT > 0)) {
       // keep it drifting so the crowd isn't frozen when you turn back
       if (!p.fleeing && p.corners) {
         const tgt = p.corners[p.target];
         _v.subVectors(tgt, p.pos); _v.y = 0;
         if (_v.length() < 0.8) p.target = (p.target + p.cw + 4) % 4;
-        else { _v.normalize(); p.pos.addScaledVector(_v, 1.7 * dt); p.mesh.position.y = 0; }
+        else { normalizeXZ(_v); movePed(world,p,_v,1.7*dt); p.mesh.position.y = 0; }
       }
       continue;
     }
@@ -136,9 +159,9 @@ export function updatePeds(world, dt) {
       _v.subVectors(p.pos, threat);
       _v.y = 0;
       if (_v.lengthSq() < 0.01) _v.set(1, 0, 0);
-      _v.normalize();
+      normalizeXZ(_v);
       p.heading = Math.atan2(_v.x, _v.z);
-      p.pos.addScaledVector(_v, speed * dt);
+      movePed(world,p,_v,speed*dt);
       if (!p.far) resolveCircle(p.pos, 0.4, city.colliders);
       const B = HALF - 2;
       p.pos.x = Math.max(-B, Math.min(B, p.pos.x));
@@ -154,9 +177,9 @@ export function updatePeds(world, dt) {
       if (d < 0.8) {
         p.target = (p.target + p.cw + 4) % 4;
       } else {
-        _v.normalize();
+        normalizeXZ(_v);
         p.heading = Math.atan2(_v.x, _v.z);
-        p.pos.addScaledVector(_v, speed * dt);
+        movePed(world,p,_v,speed*dt);
         if (!p.far) resolveCircle(p.pos, 0.4, city.colliders);
       }
     }
@@ -262,6 +285,7 @@ export function updateTraffic(world, dt) {
   const AVOID_RANGE_SQ = 120 * 120; // beyond this, cars just cruise their lane
 
   for (const t of traffic) {
+    if (world.activity && !world.activity.active(t)) continue;
     if (t.dead || !t.ai) continue;
     if (t.webT > 0) { // webbed to the road
       t.webT -= dt;
@@ -274,7 +298,7 @@ export function updateTraffic(world, dt) {
     // brake if something is ahead — only worth the O(n) scan near the player
     const px = t.pos.x + ai.fx * 8;
     const pz = t.pos.z + ai.fz * 8;
-    let blocked = false;
+    let blocked = enterStoryRoad(world,t.pos,px,pz);
     const near = (o) => {
       const dx = o.pos.x - px;
       const dz = o.pos.z - pz;

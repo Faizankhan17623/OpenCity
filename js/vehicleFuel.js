@@ -1,7 +1,10 @@
 import { runtime } from './runtime.js';
+import { normalizeComponents, normalizeVehicleParts, vehicleComponentClass } from './vehicleComponents.js';
 
 // Litres belong to a vehicle, never to the driver. Rates are arcade-time rates.
 export function initVehicleFuel(v, opts = {}) {
+  v.pumpNitro = opts.pumpNitro === true;
+  v.nitro = Number.isFinite(opts.nitro) ? Math.max(0, Math.min(v.pumpNitro ? 500 : 100, opts.nitro)) : 100;
   const definition = runtime.vehicle(v.modelId);
   const capacity = opts.fuelCapacityLiters ?? definition?.fuelCapacityLiters ?? (v.bike ? 15 : v.monster ? 90 : v.tank ? 500 : 55);
   v.fuelCapacityLiters = Number.isFinite(capacity) && capacity > 0 ? capacity : 55;
@@ -28,8 +31,15 @@ export function refillVehicle(v, dt, money) {
 
 export function describeVehicle(v) {
   if (!v) return null;
-  return { modelId: v.modelId, bike: !!v.bike, monster: !!v.monster,
+  return { modelId: v.modelId, bike: !!v.bike, monster: !!v.monster, tank: !!v.tank,
+    ownedId: v.ownedId, upgrades: v.upgrades ? { ...v.upgrades } : undefined,
+    health: v.health, maxHealth: v.maxHealth, dead: !!v.dead,
+    componentClass: vehicleComponentClass(v),
+    components: normalizeComponents(v.components, v.health, v.maxHealth),
+    parts: normalizeVehicleParts(v),
+    engineMod: !!v.engineMod, armorMod: !!v.armorMod,
     color: v.paintColor || '#' + (v.mesh.children[0]?.material?.color?.getHexString() || '3d6b8f'),
     accel: v.accel, top: v.top, rad: v.rad,
-    fuelCapacityLiters: v.fuelCapacityLiters, fuelLiters: v.fuelLiters };
+    fuelCapacityLiters: v.fuelCapacityLiters, fuelLiters: v.fuelLiters,
+    nitro: v.nitro, pumpNitro: !!v.pumpNitro };
 }

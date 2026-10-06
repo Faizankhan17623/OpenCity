@@ -1,0 +1,53 @@
+// Physical story events. Keys refer to stable campaign stage/action IDs, not translated labels.
+const move = (id,names,load,drop,options={}) => ({id,names,load,drop,...options});
+const box = (id,label,load,drop,count=1) => ({id,label,load,drop,count});
+export const SCENARIO_CONTENT = {
+ M01:{cargo:[box('alternator','Rosa’s alternator',[5,2],[8,0])]},
+ M02:{switchVehicles:true,cargo:[box('linens-hotel','Hotel linens',[6,0],[9,0]),box('linens-flats','Residence linens',[6,0],[11,0])]},
+ M03:{passengers:[move('dev-demo',['Dev'],[0,-1],[4,0],{asset:'dev'})]},
+ M05:{passengers:[move('nora',['Nora'],[4,1],[7,0],{asset:'nora'})]},
+ M06:{passengers:[move('ada',['Ada'],[4,0],[7,0])]},
+ M08:{passengers:[move('owen',['Owen Pike'],[2,1],[9,0])],pursuit:{from:3,to:6,sanctuary:'petrol'}},
+ M09:{passengers:[move('dev',['Dev'],[2,1],[5,0],{asset:'dev'})]},
+ M10:{passengers:[move('nora',['Nora'],[2,2],[5,0],{asset:'nora'})]},
+ M12:{passengers:[move('residents-a',['Resident 1','Resident 2','Resident 3'],[2,1],[4,0]),move('residents-b',['Resident 4','Resident 5','Resident 6'],[2,2],[4,0]),move('dev-injured',['Dev'],[6,0],[9,0],{asset:'dev',injured:true})],protection:{from:2,to:4,location:'workshop',crew:2,officers:true}},
+ M14:{passengers:[move('workers-five',['Suri','Worker 2','Worker 3','Worker 4','Worker 5'],[4,0],[9,0]),move('worker-six',['Worker 6'],[7,0],[9,0])]},
+ M15:{inspection:true},
+ M17:{passengers:[move('harbour-first',['Harbour passenger 1','Harbour passenger 2','Harbour passenger 3','Harbour passenger 4'],[4,0],[6,0]),move('harbour-last',['Tomas','Ellis','Harbour passenger 5'],[9,0],[11,0])],protection:{from:4,to:6,location:'island',crew:2},closure:{location:'terminal',from:1,to:11}},
+ M18:{passengers:[move('tomas',['Tomas'],[2,1],[5,0])],cargo:[box('tomas-bag','Tomas’s travel bag',[2,1],[5,0])]},
+ M19:{cargo:[box('sound','Sound cases',[2,1],[5,1],3)]},
+ M20:{passengers:[move('band-four',['Ines','Leon','Pia','Joel'],[2,0],[7,0]),move('sef',['Sef'],[4,0],[7,0])],cargo:[box('sef-equipment','Sef’s equipment',[4,0],[7,0],2)]},
+ M21:{passengers:[move('duarte',['Duarte'],[2,1],[5,1])]},
+ M22:{race:{legs:[4,6],rivals:2},rivalRescue:true},
+ M24:{passengers:[move('audience',['Pia','Audience 2','Audience 3','Audience 4'],[2,1],[4,0]),move('staff',['Sef','Staff 2','Staff 3'],[7,0],[9,0])],protection:{from:2,to:9,location:'club',crew:3,officers:true}},
+ M25:{cargo:[box('produce','Labelled produce',[2,0],[4,1],3)]},
+ M26:{cargo:[box('market-load','Market supplies',[0,-1],[7,0],3)],closure:{location:'gate',from:1,to:7}},
+ M27:{passengers:[move('oren',['Oren'],[7,1],[9,0],{injured:true})]},
+ M29:{convoy:{from:2,to:9,breakdownStage:7,repairAction:0},cargo:[box('lead-load','Cooperative freight',[2,0],[9,0],2)]},
+ M33:{passengers:[move('guests',['Booked guest 1','Booked guest 2'],[2,0],[7,0])]},
+ M34:{trial:true},
+ M35:{trial:true,passengers:[move('drivers',['Bea','Driver 2','Driver 3','Driver 4'],[4,1],[7,0])],protection:{from:4,to:7,location:'yard',crew:2}},
+ M36:{trial:true},
+ M37:{cargo:[box('donations','Shelter donations',[2,1],[5,1],3)]},
+ M38:{cargo:[box('shelter-load','Shelter supplies',[0,-1],[9,0],3)],closure:{location:'gate',from:1,to:9}},
+ M39:{cargo:[box('brakes','Reserved brake parts',[2,0],[4,0]),box('tyres','Reserved tyres',[2,1],[4,2])]},
+ M40:{passengers:[move('staff-first',['Staff 1','Staff 2','Staff 3','Staff 4'],[2,1],[4,0]),move('staff-last',['Staff 5','Staff 6','Staff 7','Staff 8'],[6,0],[9,0])],protection:{from:2,to:9,location:'dispatch',crew:3,officers:true,arrest:true,report:[2,2],wait:[9,1]}},
+ M41:{passengers:[move('causeway',['Sister','Passenger 2','Passenger 3','Passenger with blue bag'],[2,1],[4,0])],closure:{location:'coast',from:6,to:9},abandonVehicle:[7,1]},
+ M42:{passengers:[move('reunion',['Brother'],[2,0],[4,1])]},
+ M43:{passengers:[move('workers',['Mira','Worker 2','Worker 3','Worker 4','Worker 5','Worker 6'],[7,0],[9,0])],closure:{location:'depot',from:1,to:9}},
+ S03:{passengers:[move('ellis',['Ellis'],[2,0],[5,0])]},
+ S04:{cargo:[box('clothes','Tomas’s clothes',[2,0],[5,0]),box('books','Tomas’s books',[2,1],[5,0]),box('photos','Agreed photograph copies',[2,2],[5,0])]},
+ S05:{cargo:[box('rehearsal','Rehearsal equipment',[2,1],[4,0],2)]},
+ S07:{cargo:[box('sealed-load','Sealed load',[4,0],[7,0],2)]},
+ S08:{cargo:[box('freight','Paz’s freight',[2,0],[7,0],3)]},
+ S11:{passengers:[move('nora-diagnostic',['Nora'],[0,-1],[7,0],{asset:'nora'})]},
+ S12:{cargo:[box('event','Authorised event supplies',[2,0],[4,1],2)],passengers:[move('interview',['Willing interviewee'],[4,1],[7,1]),move('last-staff',['Final staff member'],[7,1],[9,0])]},
+ S14:{cargo:[box('part-a','Reserved part A',[2,0],[5,0]),box('part-b','Reserved part B',[2,1],[5,0])]},
+};
+export const TRIAL_VEHICLE_ID='rook-trial-01';
+export const INSPECTION_STOCK=[
+ {id:'running-van',label:'Running service vehicle',modelId:'oc_hatch_01',health:86,components:{engine:86,chassis:81,tyres:90,brakes:88,drivetrain:84,suspension:91}},
+ {id:'repair-car',label:'Neglected repair car',modelId:'oc_sedan_01',health:47,components:{engine:49,chassis:34,tyres:41,brakes:38,drivetrain:46,suspension:67}},
+ {id:'parts-shell',label:'Non-running parts shell',modelId:'oc_sedan_01',health:12,components:{engine:0,chassis:11,tyres:9,brakes:7,drivetrain:0,suspension:0}},
+];
+export function scenarioContent(id){return SCENARIO_CONTENT[id]||null;}

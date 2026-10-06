@@ -36,6 +36,8 @@ const TIER_SPEC = {
     dpr: 1,
     shadowMap: 1536,
     shadowDistance: 110,
+    activeRadius: 50,
+    animationInterval: .1,
     gtao: false,
     smaa: false,
     bloom: false,
@@ -46,6 +48,8 @@ const TIER_SPEC = {
     dpr: isTouch ? 1 : Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 1.75),
     shadowMap: 2048,
     shadowDistance: isTouch ? 150 : 200,
+    activeRadius: 50,
+    animationInterval: .05,
     gtao: false,
     smaa: true,
     bloom: true,
@@ -56,6 +60,8 @@ const TIER_SPEC = {
     dpr: Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 2),
     shadowMap: 3072,
     shadowDistance: 300,
+    activeRadius: 50,
+    animationInterval: 1 / 30,
     gtao: false, // opt-in via settings.ao (see createPostChain)
     smaa: true,
     bloom: true,
@@ -81,7 +87,7 @@ export function detectTier() {
       // Phones: default low unless it looks like a flagship.
       tier = /apple a1[5-9]|apple a2\d|adreno 7[3-9]|adreno 8|mali-g7[8-9]|immortalis/.test(gpu)
         ? 'medium' : 'low';
-    } else if (/(intel).*(hd|uhd) graphics|llvmpipe|swiftshader|software/.test(gpu)) {
+    } else if (/(intel).*(hd|uhd|iris)|intel\(r\) graphics|llvmpipe|swiftshader|software/.test(gpu)) {
       tier = 'low';
     } else if (cores >= 8 && mem >= 8 && /rtx|radeon rx|arc a|apple m[1-9]|geforce|quadro/.test(gpu)) {
       tier = 'high';
@@ -100,12 +106,73 @@ export function resolveTier(settings) {
   if (settings && settings.gfxTier && settings.gfxTier !== 'auto') {
     return TIERS.includes(settings.gfxTier) ? settings.gfxTier : 'medium';
   }
-  if (settings && settings.lowGfx) return 'low';
+  if (settings && !settings.gfxTier && settings.lowGfx) return 'low';
   return detectTier();
 }
 
 export function tierSpec(tier) {
   return TIER_SPEC[tier] || TIER_SPEC.medium;
+}
+
+export function activeRadius(settings, tier) {
+  const value = Number(settings?.activeRadius);
+  return Number.isFinite(value) && value > 0 ? Math.min(150, Math.max(25, value)) : tierSpec(tier).activeRadius;
+}
+
+// Ambient entities sleep in place. Story/pursuit logic keeps ownership of its
+// actors; visibility and animation can still sleep without stopping objectives.
+export function createEntityActivity(world, camera, tier) {
+  const hidden = new WeakMap(), statics = [], frustum = new THREE.Frustum();
+  const matrix = new THREE.Matrix4(), sphere = new THREE.Sphere(), center = new THREE.Vector3();
+  let radius = activeRadius(world.settings, tier), radiusSq = radius * radius;
+  const focus = () => world.player.inCar?.pos || world.player.inHeli?.pos || world.player.inBoat?.pos || world.player.inPlane?.pos || world.player.pos;
+  function visible(root, live) {
+    if (!root) return;
+    if (!live && !hidden.has(root)) {
+      hidden.set(root, { visible: root.visible, matrixWorldAutoUpdate: root.matrixWorldAutoUpdate });
+      root.visible = false; root.matrixWorldAutoUpdate = false;
+    } else if (live && hidden.has(root)) {
+      const before = hidden.get(root);root.visible = before.visible;root.matrixWorldAutoUpdate = before.matrixWorldAutoUpdate;hidden.delete(root);
+    } else if (!live) root.visible = false;
+  }
+  function inRange(position) {
+    const p = focus();return (position.x-p.x)**2+(position.z-p.z)**2 <= radiusSq;
+  }
+  function active(entity) {
+    const live = entity === world.player.inCar || entity === world.player.inHeli || inRange(entity.pos);
+    visible(entity.mesh, live);entity.sleeping = !live;return live;
+  }
+  function shouldAnimate(root, position = root.position) {
+    if (!root.visible || !inRange(position)) return false;
+    sphere.center.copy(position);sphere.center.y += 1;sphere.radius = 3;
+    return frustum.intersectsSphere(sphere);
+  }
+  function update() {
+    radius = activeRadius(world.settings, tier);radiusSq = radius * radius;
+    const far = radius + 32;
+    if(camera.far!==far){camera.far=far;camera.updateProjectionMatrix();}
+    camera.updateMatrixWorld();matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);frustum.setFromProjectionMatrix(matrix);
+    const p = focus();
+    for (const row of statics) {
+      const dx = Math.max(row.bounds.min.x-p.x, 0, p.x-row.bounds.max.x);
+      const dz = Math.max(row.bounds.min.z-p.z, 0, p.z-row.bounds.max.z);
+      visible(row.root, dx*dx+dz*dz <= radiusSq);
+    }
+    for (const list of [world.peds,world.traffic,world.parked,world.cops,world.helis,world.policeHelis]) {
+      for (const entity of list || []) active(entity);
+    }
+  }
+  function fog() {
+    // The player camera normally sits behind the focus. Add that offset so
+    // the fog band hides the far edge of the radius instead of obscuring
+    // reachable services and actors inside it.
+    center.copy(focus());const far = Math.max(8, radius + camera.position.distanceTo(center) - 3);
+    world.scene.fog.far = Math.min(world.scene.fog.far, far);
+    world.scene.fog.near = Math.min(world.scene.fog.near, world.scene.fog.far * .55);
+  }
+  return {active,inRange,shouldAnimate,update,fog,visible,get radius(){return radius;},animationInterval:tierSpec(tier).animationInterval,
+    registerStatic(roots) {for(const root of roots){const bounds=new THREE.Box3().setFromObject(root);if(!bounds.isEmpty())statics.push({root,bounds});}},
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +366,8 @@ function filmLUT(size = 16) {
 
 export function createPostChain(renderer, scene, camera, tier, opts = {}) {
   const spec = tierSpec(tier);
-  const w = window.innerWidth, h = window.innerHeight;
+  const initialSize=renderer.getSize(new THREE.Vector2());
+  const w=initialSize.x, h=initialSize.y;
   const composer = new EffectComposer(renderer);
   composer.setPixelRatio(renderer.getPixelRatio());
   composer.addPass(new RenderPass(scene, camera));

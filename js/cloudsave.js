@@ -14,7 +14,7 @@
 import { isLinked, apiCall } from './bankapi.js';
 import { showToast } from './hud.js';
 import {
-  activeSlot, slotBlob, writeSlotBlob, slotCloudRev, setSlotCloudRev,
+  activeSlot, slotBlob, writeSlotBlob, slotCloudRev, setSlotCloudRev, canWriteSave,
 } from './saveslots.js';
 
 let world = null;
@@ -24,7 +24,7 @@ let queuedSlot = -1;              // a slot whose push is waiting on connectivit
 const status = new Map();         // slot -> 'synced' | 'local' | 'conflict' | 'error' | 'pushing'
 
 export function cloudAvailable() {
-  return isLinked();
+  return isLinked() && canWriteSave();
 }
 
 export function cloudStatus(slot) {
@@ -127,8 +127,8 @@ export async function pullSlot(slot) {
   if (!cloudAvailable()) return { error: 'not signed in' };
   try {
     const r = await apiCall(`/api/save/${slot}`, { method: 'GET' });
-    writeSlotBlob(slot, r.blob);
-    setSlotCloudRev(slot, r.rev);
+    writeSlotBlob(slot, r.blob, r.rev);
+    try { setSlotCloudRev(slot, r.rev); } catch { /* replacement already committed */ }
     status.set(slot, 'synced');
     if (slot === activeSlot()) {
       setTimeout(() => location.reload(), 300);
@@ -145,6 +145,7 @@ export async function pullSlot(slot) {
 // Resolve a stored conflict: 'local' re-pushes without baseRev (force),
 // 'server' pulls.
 export async function resolveConflict(slot, choice) {
+  if (!cloudAvailable()) return {error: "Cloud changes are unavailable while saving is locked or during memory replay."};
   if (choice === 'server') {
     const r = await pullSlot(slot);
     if (!r.error) world._cloudConflict = null;

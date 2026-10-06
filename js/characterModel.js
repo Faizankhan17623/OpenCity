@@ -96,6 +96,7 @@ export function resetArticulation(ch) {
 
 export function updateCharacterDetail(ch, focus, lowGraphics = false) {
   if (!ch?.detail) return;
+  if(ch.asset){ch.detail.visible=false;return;}
   const p = ch.group.position;
   ch.detail.visible = Math.hypot(p.x - focus.x, p.z - focus.z) < (lowGraphics ? 16 : 35);
 }

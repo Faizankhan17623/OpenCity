@@ -1,3 +1,5 @@
+import { attachCharacterAsset, requestCharacterAnimation, applyCharacterAssetSuit } from './gltfChar.js';
+export { attachCharacterAsset, updateCharacterAnimation, playCharacterClip, attachCharacterWeapon, poseCharacterWeapon } from './gltfChar.js';
 import { createHumanRig, resetArticulation, updateCharacterDetail } from './characterModel.js';
 
 export { resetArticulation, updateCharacterDetail };
@@ -34,12 +36,15 @@ export const CHARACTERS = [
 ];
 
 // Articulated character, feet at y=0, facing +z; legacy limb handles retained.
-export function createCharacter({ shirt = '#ffffff', pants = '#2c3e66', skin = '#c98e63', hair = '#221a14' } = {}) {
-  return createHumanRig({ shirt, pants, skin, hair });
+export function createCharacter({ shirt = '#ffffff', pants = '#2c3e66', skin = '#c98e63', hair = '#221a14', asset = null, animationManaged = false, body, assetScale } = {}) {
+  const ch = createHumanRig({ shirt, pants, skin, hair });
+  if (asset) attachCharacterAsset(ch, asset, { animationManaged, body, scale: assetScale, skin: asset === 'officer' ? skin : undefined });
+  return ch;
 }
 
 // Recolor an existing character — used by the wardrobe suits.
 export function applySuit(ch, { shirt, pants, skin, hair }) {
+  applyCharacterAssetSuit(ch, { shirt, pants, skin, hair });
   const g = ch.group;
   const set = (mesh, c) => { if (c) mesh.material.color.set(c); };
   set(g.children[0], shirt);          // torso
@@ -52,6 +57,7 @@ export function applySuit(ch, { shirt, pants, skin, hair }) {
 }
 
 export function animateWalk(ch, t, amp) {
+  if (requestCharacterAnimation(ch, amp > .85 ? 'sprint' : amp > .6 ? 'run' : 'walk')) return;
   resetArticulation(ch);
   const s = Math.sin(t) * amp;
   const c = Math.cos(t * 2) * amp; // knee/elbow bend at twice the stride
@@ -74,6 +80,7 @@ export function animateWalk(ch, t, amp) {
 }
 
 export function animateIdle(ch) {
+  if (requestCharacterAnimation(ch, 'idle')) return;
   resetArticulation(ch);
   const g = ch.group;
   const t = (performance.now() * 0.001);
@@ -91,6 +98,7 @@ export function animateIdle(ch) {
 
 // Landing crouch: absorb impact, spring back. p goes 0 (deep) -> 1 (stood).
 export function animateLand(ch, p) {
+  if (requestCharacterAnimation(ch, 'jump_land')) return;
   const dip = (1 - p) * 0.6;
   ch.lLeg.rotation.x = dip;
   ch.rLeg.rotation.x = dip;

@@ -96,9 +96,17 @@ export function initInput() {
   window.addEventListener('keydown', (e) => {
     const names = applyRemap(namesFor(e));
     if (e.target?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
-    // stop the browser acting on game keys (quick-find, scrolling, shortcuts)
-    if (names.some((n) => GAME_KEYS.has(n) || n === 'F2')) e.preventDefault();
+    // Reserve gameplay keys only while playing; menus and text fields keep
+    // normal browser keyboard behavior. OS shortcuts remain outside our control.
+    const playing = !!document.pointerLockElement;
+    if (playing && (names.some(n => /^(Key[A-Z]|Digit[0-9]|Space|Tab|ShiftLeft|ShiftRight|Arrow.*|F[1-9]|F1[0-2])$/.test(n)))) e.preventDefault();
+    else if (!e.ctrlKey && !e.metaKey && !e.altKey && names.some(n => GAME_KEYS.has(n) || n === 'F2')) e.preventDefault();
     const id = e.code || String(e.keyCode || e.which || e.key);
+    // Ctrl is aim during gameplay. Outside gameplay, browser chords stay out
+    // of the game; Alt/Meta chords never activate gameplay actions.
+    if (e.metaKey || e.altKey || (!playing && e.ctrlKey)) return;
+    // After blur/unlock, require a fresh press instead of resuming a held key.
+    if (e.repeat) return;
     if (!keyboardHeld.has(id)) keyboardHeld.set(id, names);
     for (const n of keyboardHeld.get(id)) setInputKey('keyboard:' + id, n, true);
   });
@@ -121,6 +129,8 @@ export function initInput() {
   // right mouse is the web-shooter — keep the browser menu out of the way
   window.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('blur', clearInput);
+  document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement) clearInput(); });
+  window.addEventListener('pagehide', clearInput);
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearInput(); });
   // The visible WASD controls also work as hold buttons, not just indicators.
   for (const letter of ['w', 'a', 's', 'd']) {

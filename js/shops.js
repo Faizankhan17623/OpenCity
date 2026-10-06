@@ -1,5 +1,9 @@
 import { availableFunds, spendMoney } from './wallet.js';
+import { VEHICLE_DEALS, buyOwnedVehicle } from './ownedVehicles.js';
+import { purchaseNitro, depositNitroCash, NITRO_PRICE_PER_PERCENT } from './nitroStation.js';
+import { attachNitroStation, addNitroColliders, createNitroBayMarkers, inNitroBay, updateNitroDisplay } from './nitroStationModel.js';
 import { placeStreetSite } from './site-layout.js';
+import { createShowroom, updateShowroom } from './showroomModel.js';
 import * as THREE from 'three';
 import { blockStart, BLOCK, N } from './city.js';
 import { showToast, showNews } from './hud.js';
@@ -70,6 +74,7 @@ export function initShops(scene, world, savedUpgrades, savedMods) {
     const mesh = kiosk(scene, pos, '#3a2f28', '#5fe07a', 'CORNER $HOP');
     shops.push({ pos, mesh, cd: 0, robT: 0 });
   }
+  world.storePos = shops[0].pos;
 
   // upgrade den near spawn — purple neon
   const denPos = world.city.spawn.clone().add(new THREE.Vector3(14, 0, -10));
@@ -88,8 +93,31 @@ export function initShops(scene, world, savedUpgrades, savedMods) {
 
   // dealership — cyan
   const dealerPos = world.city.spawn.clone().add(new THREE.Vector3(-16, 0, -12));
-  placeStreetSite(world.city, dealerPos, 2.4, 'dealership');
-  kiosk(scene, dealerPos, '#102a2e', '#3dd2ff', 'AUTO PALACE');
+  placeStreetSite(world.city, dealerPos, 8.6, 'dealership');
+  world.dealerBuildingPos = dealerPos.clone();
+  const showroom = createShowroom(world, world.dealerBuildingPos);
+  const dealer = showroom.group;
+  // The map and purchase trigger point at the walk-in entrance, not the roof.
+  dealerPos.z += 4;
+  dealer.name = 'Auto Palace vehicle store';
+  // A landmark visible above pedestrians and parked cars from every approach.
+  const dealerCanvas = document.createElement('canvas');
+  dealerCanvas.width = 512; dealerCanvas.height = 256;
+  const dealerInk = dealerCanvas.getContext('2d');
+  dealerInk.fillStyle = '#102a2e'; dealerInk.fillRect(0,0,512,256);
+  dealerInk.strokeStyle = '#3dd2ff'; dealerInk.lineWidth = 12; dealerInk.strokeRect(6,6,500,244);
+  dealerInk.fillStyle = '#3dd2ff'; dealerInk.textAlign = 'center';
+  dealerInk.font = 'bold 100px Arial'; dealerInk.fillText('V',256,108);
+  dealerInk.font = 'bold 36px Arial'; dealerInk.fillText('VEHICLE STORE',256,165);
+  dealerInk.font = '24px Arial'; dealerInk.fillText('Walk closer to buy',256,210);
+  const dealerTexture = new THREE.CanvasTexture(dealerCanvas);
+  dealerTexture.colorSpace = THREE.SRGBColorSpace;
+  const dealerSign = new THREE.Sprite(new THREE.SpriteMaterial({map:dealerTexture}));
+  dealerSign.position.set(0,6.7,3.4); dealerSign.scale.set(4,2,1); dealer.add(dealerSign);
+  const dealerZone = new THREE.Mesh(new THREE.RingGeometry(1.4,1.5,32),
+    new THREE.MeshBasicMaterial({color:'#3dd2ff',side:THREE.DoubleSide}));
+  dealerZone.rotation.x = -Math.PI/2; dealerZone.position.set(0,.02,4); dealer.add(dealerZone);
+  world.dealerDeliveryPos = world.dealerBuildingPos.clone().add(new THREE.Vector3(-3.8,0,5.5));
 
   // garage pad — park any vehicle here and it's yours forever
   const garagePos = world.city.spawn.clone().add(new THREE.Vector3(16, 0, 14));
@@ -120,6 +148,13 @@ export function initShops(scene, world, savedUpgrades, savedMods) {
   wearSuit(world, world.suitSaved || 'street', true);
 
   const state = { shops, den, denPos, casinoPos, dealerPos, garagePos, wardrobePos, casinoCd: 0, garageVeh: null };
+  world.dealerPos = dealerPos;
+  world.nitroPos = world.city.spawn.clone().add(new THREE.Vector3(30,0,-24));
+  placeStreetSite(world.city,world.nitroPos,7.5,'nitro');
+  const nitroFallback = kiosk(scene,world.nitroPos,'#142c2f','#d99323','NITRO STATION');
+  addNitroColliders(world);
+  createNitroBayMarkers(world);
+  attachNitroStation(world,nitroFallback);
   return state;
 }
 
@@ -127,7 +162,7 @@ export function initShops(scene, world, savedUpgrades, savedMods) {
 export const GARAGE_PAINTS = ['#c1121f', '#f5a800', '#2fd06a', '#4a8cff', '#c95aff', '#f2f2f2', '#14181d'];
 
 export function applyGarageMods(world, v) {
-  const m = world.garageMods;
+  const m = v?.ownedId ? v.upgrades : world.garageMods;
   if (!m || !v || v.dead) return;
   if (m.engine && !v.engineMod) {
     v.engineMod = true;
@@ -136,7 +171,8 @@ export function applyGarageMods(world, v) {
   }
   if (m.armor && !v.armorMod) {
     v.armorMod = true;
-    v.health = Math.max(v.health, 200);
+    v.maxHealth = Math.max(v.maxHealth || 100, 200);
+    v.health = Math.max(v.health, v.maxHealth);
   }
   if (m.nitro) v.bigNitro = true;
   if (m.spikes && !v.spikeMod) {
@@ -166,11 +202,15 @@ export function applyGarageMods(world, v) {
 
 // Rebuild the saved garage vehicle on the pad (called at load + respawn).
 export function ensureGarageVehicle(state, world) {
+  const ownedId = state.garageVeh?.ownedId || world.garageVehicleSaved?.ownedId;
+  if (ownedId) { state.garageVeh = world.ownedVehicleInstances?.get(ownedId) || null; return; }
   const kind = world.garageKind;
   if (!kind) return;
   if (state.garageVeh && !state.garageVeh.dead) return;
   const g = state.garagePos;
   const opts = { ...world.garageVehicleSaved, bike: kind === 'bike' };
+  // Older saves already include tuned stats but predate the applied-mod flags.
+  if (opts.engineMod == null && world.garageMods.engine && Number.isFinite(opts.accel) && Number.isFinite(opts.top)) opts.engineMod = true;
   const v = makeVehicle(world.scene, g.x, g.z, 0, opts.color || (kind === 'bike' ? '#23262d' : '#3d6b8f'), opts);
   applyGarageMods(world, v);
   state.garageVeh = v;
@@ -179,12 +219,12 @@ export function ensureGarageVehicle(state, world) {
 
 // Exiting a vehicle on the pad stores it as your garage ride.
 export function garageCheck(state, world, car) {
-  if (car.tank) return; // the army wants that back
+  if (car.tank || car.temporary) return; // the army wants that back
   if (Math.hypot(car.pos.x - state.garagePos.x, car.pos.z - state.garagePos.z) > 4.5) return;
   world.garageKind = car.bike ? 'bike' : 'car';
   state.garageVeh = car;
   applyGarageMods(world, car);
-  showToast('VEHICLE GARAGED — it respawns here if lost');
+  showToast(car.ownedId ? 'VEHICLE SAVED - manage it in My Vehicles [F4]' : 'VEHICLE GARAGED - it respawns here if lost');
   world.onSave?.();
 }
 
@@ -224,6 +264,25 @@ export function updateShops(state, world, dt, keys, pressed) {
   world.nearKiosk = false;
   state.casinoCd = Math.max(0, state.casinoCd - dt);
   const onFoot = !player.inCar && !player.inHeli && player.pos.y < 2;
+  world.nitroHint = null;
+  const nitroLocation = player.inCar?.pos || player.pos;
+  const nitroDistance = Math.hypot(world.nitroPos.x-nitroLocation.x,world.nitroPos.z-nitroLocation.z);
+  if(nitroDistance<16 && !player.inHeli) {
+    world.nearKiosk=true;
+    const ready = inNitroBay(world,player.inCar) && player.inCar.vel.length() < .5;
+    world.nitroHint = world.shopHint=`NITRO — BANK $${Math.floor(world.bank?.balance || 0)} · CASH $${Math.floor(world.money || 0)} · ${ready ? `<b>5</b> Refill ($${NITRO_PRICE_PER_PERCENT}/1%, max 500%)` : 'Park beside the pump in either marked bay'} · <b>6</b> Deposit all cash to local bank`;
+    if (pressed['Digit6']) {
+      try { const deposited=depositNitroCash(world); showToast(`Deposited $${deposited} CASH into BANK. Press 5 to buy nitro.`); }
+      catch(e) { showToast(e.message); }
+    }
+    if(pressed['Digit5']) {
+      try { if (!ready) throw new Error('Stop your car in a marked bay beside the nitro pump first.'); const cost=purchaseNitro(world,player.inCar);world.nitroLastPurchase=cost;showToast(`NITRO ${Math.round(player.inCar.nitro)}% — $${cost} deducted from BANK`); }
+      catch(e){showToast(e.message);}
+    }
+  }
+
+  updateNitroDisplay(world);
+  updateShowroom(world, dt);
 
   for (const s of state.shops) {
     s.cd = Math.max(0, s.cd - dt);
@@ -297,25 +356,21 @@ export function updateShops(state, world, dt, keys, pressed) {
 
   // dealership: 1 = supercar, 2 = superbike
   const dl = Math.hypot(state.dealerPos.x - player.pos.x, state.dealerPos.z - player.pos.z);
-  if (onFoot && dl < 3.6) {
+  if (!onFoot && dl < 8) {
+    world.shopHint = 'VEHICLE STORE — exit your vehicle and walk into the cyan ring to buy';
+  }
+  if (onFoot && dl < 5.5) {
     world.nearKiosk = true;
     world.shopHint = 'AUTO PALACE — <b>1</b> Supercar $2500 · <b>2</b> Superbike $1500';
-    const deals = [
-      { cost: 2500, name: 'SUPERCAR', opts: { accel: 26, top: 58 }, color: '#c1121f' },
-      { cost: 1500, name: 'SUPERBIKE', opts: { bike: true, accel: 32, top: 66 }, color: '#f5a800' },
-      { cost: 4000, name: 'MONSTER TRUCK', opts: { accel: 20, top: 44, rad: 2.2, health: 260, monster: true }, color: '#3a6b2a' },
-    ];
-    world.shopHint = 'AUTO PALACE — <b>1</b> Supercar $2500 · <b>2</b> Superbike $1500 · <b>3</b> Monster Truck $4000';
+    const deals = VEHICLE_DEALS;
+    world.shopHint = 'AUTO PALACE — <b>1</b> Supercar $2500 · <b>2</b> Superbike $1500 · <b>3</b> Monster Truck $4000 · <b>4</b> Vireo 400 $900';
     for (let i = 0; i < deals.length; i++) {
       if (!pressed['Digit' + (i + 1)]) continue;
       const deal = deals[i];
-      if (availableFunds(world, deal.cost) < deal.cost) { showToast('Not enough cash'); continue; }
-      spendMoney(world, deal.cost);
-      const v = makeVehicle(world.scene, state.dealerPos.x + 7, state.dealerPos.z, 0, deal.color, deal.opts);
-      world.parked.push(v);
-      sfxMissionPass();
-      showToast(`${deal.name} DELIVERED — it's outside`);
-      world.onSave?.();
+      try {
+        buyOwnedVehicle(world, deal);
+        sfxMissionPass();showToast(deal.name + ' DELIVERED - saved in My Vehicles (F4)');
+      } catch(error) { showToast(error.message); }
     }
   }
 
@@ -326,6 +381,9 @@ export function updateShops(state, world, dt, keys, pressed) {
   if (onFoot && gd < 5 && gd <= wd) {
     if (!world.garageKind) {
       world.shopHint = 'GARAGE — exit any vehicle on the pad to keep it forever';
+    } else if (state.garageVeh?.ownedId) {
+      world.nearKiosk = true;
+      world.shopHint = 'WORKSHOP - press F4 for repairs and upgrades for this vehicle';
     } else {
       world.nearKiosk = true;
       const m = world.garageMods;

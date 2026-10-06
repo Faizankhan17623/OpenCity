@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { vehicleTransferBlock } from './vehicleFinance.js';
 import { HALF } from './city.js';
 import { showToast, showNews } from './hud.js';
 import { sfxMissionPass, sfxPickup } from './sound.js';
@@ -73,6 +74,8 @@ export function updateExport(world, dt) {
     world.expHint = `EXPORT DOCK ${ex.idx + 1}/3 — they want <b>${want.label}</b> ($${want.pay}) — park it in the ring`;
     return;
   }
+  const transferBlock=vehicleTransferBlock(world,goods);
+  if(transferBlock){ex.holdT=0;world.expHint=transferBlock;return;}
   if (!onFoot || d > 12) {
     ex.holdT = 0;
     world.expHint = 'Step away from the wheel — the crane takes it from here';
@@ -85,15 +88,19 @@ export function updateExport(world, dt) {
   world.expHint = `CRANE HOOKING ON... ${Math.ceil((1.5 - ex.holdT) * 10) / 10}s`;
   if (ex.holdT >= 1.5) {
     ex.holdT = 0;
+    if(goods.ownedId){
+      const oldIndex=ex.idx;
+      try {world.vehicleServices.sellOwned(goods,want.pay+(oldIndex+1>=WANTS.length?BONUS:0),'Vehicle export',()=>{ex.idx=oldIndex+1;},()=>{ex.idx=oldIndex;});}
+      catch(error){world.expHint=error.message;showToast(error.message);return;}
+    }
     world.scene.remove(goods.mesh);
     const pi = world.parked.indexOf(goods);
     if (pi >= 0) world.parked.splice(pi, 1);
-    world.money += want.pay;
-    ex.idx++;
+    if(!goods.ownedId){world.money += want.pay;ex.idx++;}
     sfxPickup();
     showToast(`EXPORTED! +$${want.pay}`);
     if (ex.idx >= WANTS.length) {
-      world.money += BONUS;
+      if(!goods.ownedId)world.money += BONUS;
       addRep(world, 300);
       sfxMissionPass();
       showToast(`DAY LIST DONE +$${BONUS} BONUS`);

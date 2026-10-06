@@ -1,3 +1,5 @@
+import { runtime } from './runtime.js';
+import { canWriteSave } from './saveslots.js';
 import * as THREE from 'three';
 
 // RACE GHOSTS: every finished street race leaves an echo. Your best run
@@ -5,7 +7,7 @@ import * as THREE from 'three';
 // blue car the next time you line up on the same course. Beat yourself.
 
 const STEP = 0.4; // seconds between breadcrumbs
-const KEYFOR = (def) => 'oc-ghost-' + (def.key ?? def.name ?? 'race');
+const KEYFOR = (def) => 'opencity.'+runtime.profile.id+'.ghost-' + (def.key ?? def.name ?? 'race');
 
 export function initGhosts(scene, world) {
   const mesh = new THREE.Mesh(
@@ -64,7 +66,7 @@ export function updateGhosts(world, dt) {
     gh.mesh.visible = false;
     // keep the shorter (faster) run as the ghost
     if (gh.rec.length > 5 && (!gh.play || gh.rec.length < gh.play.length)) {
-      try { localStorage.setItem(KEYFOR(def), JSON.stringify(gh.rec)); } catch {}
+      try { if (canWriteSave()) localStorage.setItem(KEYFOR(def), JSON.stringify(gh.rec)); } catch {}
     }
     gh.rec = [];
   }

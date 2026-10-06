@@ -104,6 +104,17 @@ export function initGasStations(scene, world) {
     if (!pos) continue;
     stations.push({ pos, mesh: pump(scene, pos) });
   }
+  // Authored forecourt already contains the pumps and canopy. Only add the
+  // refuelling zones; keeping their socket positions avoids duplicate geometry.
+  const district=world.city?.authoredWorld;
+  if (district) for (let i=1;i<=2;i++) {
+    const pos=district.socket('marina-forecourt','socket_pump_'+i);
+    if (!pos) continue;
+    const mesh=new THREE.Group();mesh.name='ForecourtFuelZone'+i;mesh.position.copy(pos);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(2.1,2.2,32),new THREE.MeshBasicMaterial({color:0xffb648,transparent:true,opacity:.42,side:THREE.DoubleSide,depthWrite:false}));
+    ring.rotation.x=-Math.PI/2;ring.position.y=.04;mesh.add(ring);mesh.userData.ring=ring;scene.add(mesh);
+    stations.push({pos,mesh,radius:3.5,authored:true,pumpSocket:'socket_pump_'+i});
+  }
   world.settings.fuel = world.settings.fuel !== false;
   world.gas = { stations, active: null };
   world.gasHint = null;
@@ -117,7 +128,7 @@ export function burnFuel(world, dt, throttleMag, boosting = false) {
   const fraction = car.fuelLiters / car.fuelCapacityLiters;
   if (fraction < .12 && !car.fuelWarned) {
     car.fuelWarned = true;
-    showToast('LOW FUEL — petrol pumps are marked F on the map');
+    showToast('LOW FUEL — look for the petrol-pump symbol on the map');
   }
   if (fraction > .2) car.fuelWarned = false;
 }
@@ -129,7 +140,12 @@ export function hasFuel(world) {
 }
 
 export function nearbyPump(world, car) {
-  return world.gas?.stations.find(s => Math.hypot(car.pos.x - s.pos.x, car.pos.z - s.pos.z) < 5);
+  let found=null,nearest=Infinity;
+  for(const station of world.gas?.stations||[]) {
+    const distance=Math.hypot(car.pos.x-station.pos.x,car.pos.z-station.pos.z);
+    if(distance<(station.radius??5)&&distance<nearest){found=station;nearest=distance;}
+  }
+  return found;
 }
 
 export function canRefuel(world, car) {
@@ -147,7 +163,7 @@ export function updateGasStations(world, dt, keys) {
   g.active = null;
 
   for (const s of g.stations) {
-    s.mesh.userData.ring.rotation.y += dt;
+    if(!s.authored)s.mesh.userData.ring.rotation.y += dt;
     s.mesh.userData.ring.visible = !!car && world.settings.fuel;
   }
   if (world.settings.fuel && car && !car.tank && !car.dead) {
@@ -158,7 +174,8 @@ export function updateGasStations(world, dt, keys) {
       world.gasHint = 'PETROL — stop inside the ring to refuel';
     } else if (car.fuelCapacityLiters - car.fuelLiters <= .001) {
       world.gasHint = 'Tank full · E to exit';
-    } else if (canRefuel(world, car) && keys.KeyE && !keys.KeyW && !keys.KeyS) {
+    } else if (canRefuel(world, car) && keys.KeyE && !keys.KeyW && !keys.KeyS
+      && (!world.characterSequences || world.characterSequences.active?.kind==='fuel'&&world.characterSequences.active.phase==='hold')) {
       car.refuelling = true;
       g.active = car;
       const result = refillVehicle(car, dt, world.money);

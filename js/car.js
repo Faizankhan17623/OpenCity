@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { resolveCircle, HALF } from './city.js';
 import { createSedanMesh, updateVehicleDetail } from './vehicleModel.js';
 import { initVehicleFuel } from './vehicleFuel.js';
+import { normalizeComponents, normalizeVehicleParts, vehicleComponentClass, effectiveVehicleStats, applyVehicleDamage } from './vehicleComponents.js';
 import { attachVehicleAsset } from './gltfVehicle.js';
+import { runtime } from './runtime.js';
 
 export { updateVehicleDetail };
 
@@ -127,6 +129,9 @@ export function createBikeMesh(color) {
 // Standard vehicle object used by player cars, parked cars, traffic and police.
 // Note: `pos` aliases mesh.position so writes to pos move the mesh.
 export function makeVehicle(scene, x, z, heading, color, opts = {}) {
+  if (opts.police && !opts.modelId) opts = { ...opts, modelId: 'oc_police_sedan_01' };
+  const definition = runtime.vehicle(opts.modelId);
+  if (definition?.bike) opts = { ...opts, bike: true };
   const { group, wheels, lightbar } = opts.bike ? createBikeMesh(color) : createCarMesh(color, opts);
   if (opts.monster) { // jack the body up on big wheels
     group.scale.set(1.25, 1.35, 1.25);
@@ -138,13 +143,20 @@ export function makeVehicle(scene, x, z, heading, color, opts = {}) {
   const vehicle = {
     mesh: group,
     modelId: opts.modelId,
+    ownedId: opts.ownedId,
+    temporary: !!opts.temporary,
+    upgrades: opts.ownedId ? { ...opts.upgrades } : undefined,
+    engineMod: !!opts.engineMod,
+    armorMod: !!opts.armorMod,
+    maxHealth: opts.maxHealth ?? (opts.bike ? 60 : opts.monster ? 260 : 100),
     paintColor: color,
+    componentSlots: definition?.componentSlots ? [...definition.componentSlots] : undefined,
     wheels,
     lightbar,
     pos: group.position,
     heading,
     vel: new THREE.Vector3(),
-    health: opts.health ?? (opts.bike ? 60 : 100),
+    health: opts.health ?? (opts.bike ? 60 : opts.monster ? 260 : 100),
     dead: false,
     smokeT: 0,
     police: !!opts.police,
@@ -156,6 +168,9 @@ export function makeVehicle(scene, x, z, heading, color, opts = {}) {
     top: opts.top ?? (opts.bike ? 55 : undefined),
     rad: opts.rad ?? (opts.bike ? 0.9 : undefined),
   };
+  vehicle.componentClass = vehicleComponentClass({ ...vehicle, componentClass: opts.componentClass });
+  vehicle.components = normalizeComponents(opts.components, vehicle.health, vehicle.maxHealth);
+  vehicle.parts = normalizeVehicleParts(vehicle, opts.parts);
   initVehicleFuel(vehicle, opts);
   attachVehicleAsset(vehicle);
   return vehicle;
@@ -170,26 +185,28 @@ export function physStep(v, ctl, dt, colliders) {
   _fwd.set(Math.sin(v.heading), 0, Math.cos(v.heading));
   const speedF = v.vel.dot(_fwd);
 
+  const stats = effectiveVehicleStats(v);
+  const propulsion = stats.propulsion && v.engineEnabled !== false;
   let a = 0;
-  if (ctl.throttle > 0 && v.engineEnabled !== false) {
-    a = (v.accel ?? 17) * ctl.throttle * Math.max(0, 1 - speedF / (v.top ?? 38));
+  if (ctl.throttle > 0 && propulsion) {
+    a = stats.accel * ctl.throttle * Math.max(0, 1 - speedF / Math.max(1,stats.top));
   } else if (ctl.throttle < 0) {
-    if (speedF > 0.5) a = -26; // braking
-    else if (speedF > -11 && v.engineEnabled !== false) a = 11 * ctl.throttle; // reversing
+    if (speedF > 0.5) a = -Math.min(stats.braking, speedF / Math.max(dt, 0.000001)); // brakes cannot propel backwards
+    else if (speedF > -11 && propulsion) a = 11 * stats.accelMul * ctl.throttle; // reversing
   }
   v.vel.addScaledVector(_fwd, a * dt);
   v.vel.multiplyScalar(Math.max(0, 1 - 0.45 * dt));
 
   // full steering authority from ~4.5 m/s so the car responds immediately
   const steerFactor = Math.max(-1, Math.min(1, speedF / 4.5));
-  v.heading += ctl.steer * 2.1 * (ctl.handbrake ? 1.5 : 1) * steerFactor * dt;
+  v.heading += ctl.steer * stats.steering * (ctl.handbrake ? 1.5 : 1) * steerFactor * dt;
 
   // lateral grip (low while handbraking => drift; wet roads shave it, see
   // weather_hazards.js which sets v.gripMul each frame while driving)
   _fwd.set(Math.sin(v.heading), 0, Math.cos(v.heading));
   const sf = v.vel.dot(_fwd);
   _side.copy(v.vel).addScaledVector(_fwd, -sf);
-  const grip = (ctl.handbrake ? 2.2 : 8) * (v.gripMul ?? 1);
+  const grip = (ctl.handbrake ? 2.2 : 8) * (v.gripMul ?? 1) * stats.gripMul;
   v.vel.addScaledVector(_side, -Math.min(1, grip * dt));
 
   v.pos.addScaledVector(v.vel, dt);
@@ -203,7 +220,7 @@ export function physStep(v, ctl, dt, colliders) {
       impact = -vn;
       v.vel.x -= hit.nx * vn * 1.5;
       v.vel.z -= hit.nz * vn * 1.5;
-      if (impact > 6) v.health -= (impact - 6) * 2.2;
+      if (impact > 6) applyVehicleDamage(v, (impact - 6) * 2.2, { kind: 'collision' });
     }
   }
 
@@ -215,13 +232,18 @@ export function physStep(v, ctl, dt, colliders) {
 
   // visuals
   v.mesh.rotation.y = v.heading;
-  v.mesh.rotation.z = v.bike ? -ctl.steer * 0.35 * Math.min(1, sf / 10) : 0; // bikes lean
-  const spin = (sf * dt) / 0.36;
+  const lean = v.bike ? -ctl.steer * 0.35 * Math.min(1, Math.abs(sf) / 10) : 0;
+  // Authored bikes have separate lean, steering and axle pivots. Applying yaw
+  // to both Steering and Wheel_F would turn the front wheel twice.
+  v.mesh.rotation.z = v.asset?.lean ? 0 : lean;
+  if (v.asset?.lean) v.asset.lean.rotation.z = v.asset.leanRestRoll + lean;
+  const spin = (sf * dt) / (v.asset?.wheelRadius || .36);
   const steerWheels = v.bike ? 1 : 2;
+  if (v.asset?.steering) v.asset.steering.rotation.y = v.asset.steeringRestYaw + ctl.steer * .45;
   for (let i = 0; i < v.wheels.length; i++) {
     const w = v.wheels[i];
     w.rotation.x += spin;
-    if (i < steerWheels) w.rotation.y = ctl.steer * 0.45;
+    if (i < steerWheels) w.rotation.y = (v.asset?.wheelRestYaw?.[i] || 0) + (v.asset?.steering ? 0 : ctl.steer * .45);
   }
   return impact;
 }

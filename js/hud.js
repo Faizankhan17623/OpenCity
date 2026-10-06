@@ -1,5 +1,6 @@
-import { CITY, HALF } from './city.js';
+import { HALF } from './city.js';
 import { keys } from './input.js';
+import { drawMapMarkers } from './mapMarkers.js';
 
 let els = null;
 let mapCtx = null;
@@ -59,6 +60,7 @@ export function initHUD() {
 
   // level badge along the top edge
   const lvl = document.createElement('div');
+  lvl.id = 'level-readout';
   lvl.style.cssText =
     'position:fixed;top:9px;left:50%;transform:translateX(-50%);z-index:6;text-align:center;' +
     'color:#55e6ff;font:800 12px/1.5 Consolas,ui-monospace,monospace;letter-spacing:.22em;' +
@@ -106,17 +108,56 @@ export function hideBanner() {
 }
 
 let toastTimer = null;
-export function showToast(text) {
+let toastClickHandler = null;
+export function showToast(text, { duration = 2200, dismissOnClick = false } = {}) {
+  if (toastClickHandler) window.removeEventListener('click', toastClickHandler);
+  toastClickHandler = null;
   els.toast.textContent = text;
   els.toast.style.display = 'block';
+  els.toast.style.pointerEvents = dismissOnClick ? 'auto' : '';
+  els.toast.style.cursor = dismissOnClick ? 'pointer' : '';
+  els.toast.style.maxWidth = dismissOnClick ? 'min(90vw, 760px)' : '';
+  els.toast.style.padding = dismissOnClick ? '10px 14px' : '';
+  els.toast.style.background = dismissOnClick ? 'rgba(6,12,20,.94)' : '';
+  els.toast.style.border = dismissOnClick ? '1px solid rgba(85,230,255,.45)' : '';
+  els.toast.style.textAlign = dismissOnClick ? 'center' : '';
+  els.toast.style.whiteSpace = dismissOnClick ? 'normal' : '';
+  els.toast.style.textTransform = dismissOnClick ? 'none' : '';
+  els.toast.setAttribute('role', dismissOnClick ? 'button' : 'status');
+  els.toast.tabIndex = dismissOnClick ? 0 : -1;
+  els.toast.onclick = dismissOnClick ? dismissToast : null;
+  els.toast.onkeydown = dismissOnClick ? (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      dismissToast();
+    }
+  } : null;
+  if (dismissOnClick) {
+    toastClickHandler = dismissToast;
+    // Let the Play button's click finish before listening for a dismiss click.
+    setTimeout(() => {
+      if (toastClickHandler) window.addEventListener('click', toastClickHandler);
+    }, 0);
+  }
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { els.toast.style.display = 'none'; }, 2200);
+  toastTimer = setTimeout(dismissToast, duration);
+}
+
+function dismissToast() {
+  if (!els?.toast) return;
+  if (toastClickHandler) window.removeEventListener('click', toastClickHandler);
+  toastClickHandler = null;
+  clearTimeout(toastTimer);
+  toastTimer = null;
+  els.toast.style.display = 'none';
+  els.toast.onclick = null;
+  els.toast.onkeydown = null;
 }
 
 export function updateHUD(world) {
   const { player } = world;
 
-  els.money.textContent = '$' + world.money.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  els.money.textContent = 'CASH $' + world.money.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
   const hh = Math.floor(world.clock);
   const mm = Math.floor((world.clock % 1) * 60);
@@ -138,7 +179,7 @@ export function updateHUD(world) {
     const v = player.inCar || player.inHeli || player.inBoat;
     els.speed.style.display = 'block';
     const nitro = player.inCar && !player.inCar.tank
-      ? ` <small style="color:#7ecbff">N₂O ${Math.round(player.nitro ?? 100)}%</small>` : '';
+      ? ` <small style="color:#7ecbff">N₂O ${Math.round(player.inCar.nitro ?? 100)}%</small>` : '';
     els.speed.innerHTML = `<span class="big">${Math.round(v.vel.length() * 2.4)}</span> <small>MPH</small>` + nitro;
     if (player.inCar && !v.tank && world.settings.fuel) {
       const percent = Math.max(0, Math.min(100, v.fuelLiters / v.fuelCapacityLiters * 100));
@@ -202,430 +243,84 @@ export function updateHUD(world) {
 
   // hurt flash + low health pulse
   let dmg = world.damageFlash || 0;
-  if (hp > 0 && hp < 30) dmg = Math.max(dmg, 0.22 + Math.sin(world.time * 6) * 0.1);
+  if (hp > 0 && hp < 30) dmg = Math.max(dmg, world.settings?.reduceMotion ? 0.18 : 0.22 + Math.sin(world.time * 6) * 0.1);
   els.damage.style.opacity = Math.min(1, dmg).toFixed(2);
 
   drawMinimap(world);
+}
+
+// Rotate world coordinates, never the canvas: map symbols stay upright.
+export function createMinimapProjection({ size, x, z, heading = 0, range = 240, northUp = false }) {
+  const span = Number.isFinite(range) ? Math.max(100, Math.min(600, range)) : 240;
+  const rotation = northUp ? 0 : heading - Math.PI;
+  const cosine = Math.cos(rotation), sine = Math.sin(rotation), scale = size / span;
+  const project = (wx, wz) => {
+    const dx = (wx - x) * scale, dz = (wz - z) * scale;
+    return [size / 2 + dx * cosine - dz * sine, size / 2 + dx * sine + dz * cosine];
+  };
+  const edge = (wx, wz, margin = 10) => {
+    const [px, py] = project(wx, wz);
+    const dx = px - size / 2, dy = py - size / 2;
+    const factor = Math.min(1, (size / 2 - margin) / Math.max(Math.abs(dx), Math.abs(dy), 1));
+    return [size / 2 + dx * factor, size / 2 + dy * factor];
+  };
+  return { project, edge, rotation, scale, range: span };
 }
 
 function drawMinimap(world) {
   const c = els.minimap;
   const g = mapCtx;
   const size = c.width;
-  const sc = size / (CITY + 30);
-  const toMap = (x, z) => [(x + HALF + 15) * sc, (z + HALF + 15) * sc];
+  const p = world.player.inCar || world.player.inHeli || world.player.inBoat || world.player.inPlane || world.player;
+  const h = Number.isFinite(p.heading) ? p.heading : world.player.heading || 0;
+  const reduced = !!world.settings?.reduceMotion;
+  const projection = createMinimapProjection({ size, x: p.pos.x, z: p.pos.z, heading: h,
+    range: world.settings?.minimapRange || 240, northUp: reduced || !!world.settings?.minimapNorthUp });
+  const sc = projection.scale;
+  const toMap = projection.project;
+  const mapTime = reduced ? 0 : performance.now();
+  const polygon = rect => {
+    const points = [[rect.x0, rect.z0], [rect.x1, rect.z0], [rect.x1, rect.z1], [rect.x0, rect.z1]].map(([x,z]) => toMap(x,z));
+    g.beginPath(); points.forEach(([x,z],i) => i ? g.lineTo(x,z) : g.moveTo(x,z)); g.closePath(); g.fill();
+  };
 
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   g.fillStyle = '#0a141d';
   g.fillRect(0, 0, size, size);
 
-  // roads
+  // Roads follow the same world projection as objectives and district polygons.
   g.strokeStyle = '#26414f';
   g.lineWidth = Math.max(2, 16 * sc);
-  for (const rx of world.city.roadXs) {
-    const [mx] = toMap(rx, 0);
-    g.beginPath();
-    g.moveTo(mx, 0);
-    g.lineTo(mx, size);
-    g.stroke();
-  }
-  for (const rz of world.city.roadZs) {
-    const [, mz] = toMap(0, rz);
-    g.beginPath();
-    g.moveTo(0, mz);
-    g.lineTo(size, mz);
-    g.stroke();
-  }
+  const road = (x0,z0,x1,z1) => {
+    const [ax,ay] = toMap(x0,z0), [bx,by] = toMap(x1,z1);
+    g.beginPath(); g.moveTo(ax,ay); g.lineTo(bx,by); g.stroke();
+  };
+  for (const rx of world.city.roadXs) road(rx, -HALF - 15, rx, HALF + 15);
+  for (const rz of world.city.roadZs) road(-HALF - 15, rz, HALF + 15, rz);
 
   // empire district tints: green = yours, red = rival, flashing = under attack
   if (world.empire) {
     for (const z of world.empire.zones) {
-      const [x0, z0] = toMap(z.rect.x0, z.rect.z0);
-      const [x1, z1] = toMap(z.rect.x1, z.rect.z1);
-      const raided = world.empire.raid?.zone === z && Math.floor(performance.now() * 0.004) % 2 === 0;
+      const raided = world.empire.raid?.zone === z && Math.floor(mapTime * 0.004) % 2 === 0;
       g.fillStyle = raided ? 'rgba(255,90,74,0.5)' : z.owned ? 'rgba(47,175,78,0.22)' : 'rgba(160,32,32,0.18)';
-      g.fillRect(x0, z0, x1 - x0, z1 - z0);
+      polygon(z.rect);
     }
   }
 
   // gang turf tint
   if (world.gang) {
     const z = world.gang.zone;
-    const [x0, z0] = toMap(z.x0, z.z0);
-    const [x1, z1] = toMap(z.x1, z.z1);
     g.fillStyle = world.gang.owned ? 'rgba(47,175,78,0.25)' : 'rgba(192,48,48,0.3)';
-    g.fillRect(x0, z0, x1 - x0, z1 - z0);
+    polygon(z);
   }
 
-  // Petrol pumps: matching amber F markers on the minimap and city map.
-  for (const s of world.gas?.stations || []) {
-    const [mx, mz] = toMap(s.pos.x, s.pos.z);
-    g.fillStyle = '#ffc45b'; g.font = 'bold 10px Arial';
-    g.fillText('F', mx - 3, mz + 3);
-  }
-  // robbable stores
-  if (world.shops) {
-    for (const s of world.shops) {
-      const [mx, mz] = toMap(s.pos.x, s.pos.z);
-      g.fillStyle = s.cd > 0 ? '#5a5a60' : '#2fd06a';
-      g.fillRect(mx - 2, mz - 2, 4, 4);
-    }
-  }
-
-  // tanks
-  if (world.tanks) {
-    for (const t of world.tanks) {
-      if (t.dead) continue;
-      const [mx, mz] = toMap(t.pos.x, t.pos.z);
-      g.fillStyle = '#ff3b3b';
-      g.fillRect(mx - 3, mz - 3, 6, 6);
-    }
-  }
-
-  // pickups
-  for (const pk of world.pickups) {
-    const [mx, mz] = toMap(pk.pos.x, pk.pos.z);
-    g.fillStyle = pk.type === 'money' ? '#5fe07a' : pk.type === 'ammo' ? '#ffc94a' : '#e05f5f';
-    g.fillRect(mx - 1.5, mz - 1.5, 3, 3);
-  }
-
-  // mission blips: yellow = mission start, pink = live objective
-  const m = world.mission;
-  if (m) {
-    const pulse = 3 + Math.sin(performance.now() * 0.006) * 1.2;
-    if (m.active) {
-      const [mx, mz] = toMap(m.objectivePos.x, m.objectivePos.z);
-      g.fillStyle = '#ff4ad2';
-      g.beginPath();
-      g.arc(mx, mz, pulse + 1, 0, Math.PI * 2);
-      g.fill();
-    } else {
-      const [mx, mz] = toMap(m.markerPos.x, m.markerPos.z);
-      g.fillStyle = '#ffd24a';
-      g.beginPath();
-      g.arc(mx, mz, pulse, 0, Math.PI * 2);
-      g.fill();
-    }
-  }
-
-  // active race checkpoint
-  if (world.raceBlip) {
-    const [mx, mz] = toMap(world.raceBlip.x, world.raceBlip.z);
-    g.fillStyle = '#ff9a3d';
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.008) * 1.2, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // ambulance patient / hospital
-  for (const [site, label, color] of [[world.medic?.hospital, 'H', '#68d8de'], [world.armsdealer?.pos, 'G', '#e1b76a']]) {
-    if (!site) continue;
-    const [x,z] = toMap(site.x, site.z);
-    g.fillStyle = color; g.font = 'bold 10px Arial'; g.fillText(label, x-3, z+3);
-  }
-  if (world.medBlip) {
-    const [mx, mz] = toMap(world.medBlip.x, world.medBlip.z);
-    g.fillStyle = '#ffffff';
-    g.fillRect(mx - 4, mz - 1.5, 8, 3);
-    g.fillRect(mx - 1.5, mz - 4, 3, 8);
-  }
-
-  // spire gauntlet ring / warden
-  if (world.gauntletBlip) {
-    const [mx, mz] = toMap(world.gauntletBlip.x, world.gauntletBlip.z);
-    g.strokeStyle = '#4ad2ff';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.012) * 1.4, 0, Math.PI * 2);
-    g.stroke();
-  }
-
-  // swing race ring
-  if (world.swingBlip) {
-    const [mx, mz] = toMap(world.swingBlip.x, world.swingBlip.z);
-    g.strokeStyle = '#ff9a3d';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.014) * 1.2, 0, Math.PI * 2);
-    g.stroke();
-  }
-
-  // nearest fire
-  if (world.fireBlip) {
-    const [mx, mz] = toMap(world.fireBlip.x, world.fireBlip.z);
-    g.fillStyle = Math.floor(performance.now() * 0.005) % 2 === 0 ? '#ff6a20' : '#ffb020';
-    g.fillRect(mx - 3, mz - 3, 6, 6);
-  }
-
-  // museum fence, while carrying the canvas
-  if (world.museumBlip) {
-    const [mx, mz] = toMap(world.museumBlip.x, world.museumBlip.z);
-    g.fillStyle = '#c95aff';
-    g.save();
-    g.translate(mx, mz);
-    g.rotate(Math.PI / 4);
-    g.fillRect(-3, -3, 6, 6);
-    g.restore();
-  }
-
-  // empire flashpoint (takeover or raid)
-  if (world.empireBlip) {
-    const [mx, mz] = toMap(world.empireBlip.x, world.empireBlip.z);
-    g.fillStyle = world.empireBlip.raid ? '#ff5a4a' : '#2fd06a';
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.012) * 1.4, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // paparazzi subject
-  if (world.papBlip) {
-    const [mx, mz] = toMap(world.papBlip.x, world.papBlip.z);
-    g.fillStyle = '#ff4ad2';
-    g.fillRect(mx - 3, mz - 2, 6, 4);
-    g.fillStyle = '#17202b';
-    g.fillRect(mx - 1, mz - 1, 2, 2);
-  }
-
-  // smuggle drop point
-  if (world.smuggleBlip) {
-    const [mx, mz] = toMap(world.smuggleBlip.x, world.smuggleBlip.z);
-    g.fillStyle = '#c9b458';
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.01) * 1.2, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // taxi fare / drop-off pin
-  if (world.taxiBlip) {
-    const [mx, mz] = toMap(world.taxiBlip.x, world.taxiBlip.z);
-    g.fillStyle = '#d0a020';
-    g.fillRect(mx - 3, mz - 3, 6, 6);
-  }
-
-  // valet parking slot
-  if (world.valetBlip) {
-    const [mx, mz] = toMap(world.valetBlip.x, world.valetBlip.z);
-    g.strokeStyle = '#7cf78c';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(mx, mz, 4, 0, Math.PI * 2);
-    g.stroke();
-  }
-
-  // season-10 objectives: pizza (yellow square), repo (purple), news scene
-  // (blue tv), cop suspect (badge dot), most-wanted (red skull-dot),
-  // pink-slip finish (pink), boat gates (teal), boss shade (violet)
-  const S10 = [
-    [world.pizzaBlip, '#f7d04a', 'rect'],
-    [world.repoBlip, '#b08af0', 'rect'],
-    [world.newsBlip, '#4a8af0', 'rect'],
-    [world.copBlip, '#4a8af0', 'dot'],
-    [world.mwBlip, '#f04a4a', 'dot'],
-    [world.slipBlip, '#f05a9a', 'dot'],
-    [world.boatraceBlip, '#4af0c8', 'ring'],
-    [world.bossrushBlip, '#b08af0', 'ring'],
-    [world.bhBlip, '#e8a04a', 'dot'],
-    [world.streetRaceBlip, '#ff8adf', 'ring'],
-  ];
-  for (const [blip, color, kind] of S10) {
-    if (!blip) continue;
-    const [mx, mz] = toMap(blip.x, blip.z);
-    if (kind === 'rect') {
-      g.fillStyle = color;
-      g.fillRect(mx - 3, mz - 3, 6, 6);
-    } else if (kind === 'dot') {
-      g.fillStyle = color;
-      g.beginPath();
-      g.arc(mx, mz, 3.5 + Math.sin(performance.now() * 0.01) * 1, 0, Math.PI * 2);
-      g.fill();
-    } else {
-      g.strokeStyle = color;
-      g.lineWidth = 2;
-      g.beginPath();
-      g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.012) * 1.2, 0, Math.PI * 2);
-      g.stroke();
-    }
-  }
-
-  // ringing payphone / courier drop
-  if (world.phoneBlip) {
-    const [mx, mz] = toMap(world.phoneBlip.x, world.phoneBlip.z);
-    g.strokeStyle = '#7cd0f7';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(mx, mz, 3.5 + Math.sin(performance.now() * 0.012) * 1.2, 0, Math.PI * 2);
-    g.stroke();
-  }
-
-  // drug lab raid site
-  if (world.druglabBlip) {
-    const [mx, mz] = toMap(world.druglabBlip.x, world.druglabBlip.z);
-    g.fillStyle = '#c9a020';
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.01) * 1.2, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // drone delivery target
-  if (world.droneBlip) {
-    const [mx, mz] = toMap(world.droneBlip.x, world.droneBlip.z);
-    g.fillStyle = '#4ad2ff';
-    g.beginPath();
-    g.arc(mx, mz, 3.5, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // tournament: the checkpoint gate you're chasing
-  if (world.tourneyBlip) {
-    const [mx, mz] = toMap(world.tourneyBlip.x, world.tourneyBlip.z);
-    g.fillStyle = '#ffa030';
-    g.beginPath();
-    g.moveTo(mx, mz - 4); g.lineTo(mx + 4, mz + 3); g.lineTo(mx - 4, mz + 3);
-    g.closePath();
-    g.fill();
-  }
-
-  // contracts: the current mark
-  if (world.contractBlip) {
-    const [mx, mz] = toMap(world.contractBlip.x, world.contractBlip.z);
-    g.fillStyle = '#c9445a';
-    g.beginPath();
-    g.arc(mx, mz, 4, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // the syndicate: burner phone / chapter objective
-  if (world.syndBlip) {
-    const [mx, mz] = toMap(world.syndBlip.x, world.syndBlip.z);
-    g.fillStyle = '#d0a020';
-    g.beginPath();
-    g.arc(mx, mz, 4, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // the harbor thing, wading through the city
-  if (world.kaijuBlip) {
-    const [mx, mz] = toMap(world.kaijuBlip.x, world.kaijuBlip.z);
-    g.fillStyle = Math.floor(performance.now() * 0.006) % 2 === 0 ? '#5ef2a0' : '#0e1f1c';
-    g.beginPath();
-    g.arc(mx, mz, 5 + Math.sin(performance.now() * 0.012) * 1.8, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // the nemesis, mid-ambush
-  if (world.nemesisBlip) {
-    const [mx, mz] = toMap(world.nemesisBlip.x, world.nemesisBlip.z);
-    g.fillStyle = '#a01020';
-    g.beginPath();
-    g.arc(mx, mz, 4.5 + Math.sin(performance.now() * 0.014) * 1.6, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // train heist cargo wagon
-  if (world.trainBlip) {
-    const [mx, mz] = toMap(world.trainBlip.x, world.trainBlip.z);
-    g.fillStyle = '#d0a020';
-    g.fillRect(mx - 3, mz - 4.5, 6, 9);
-  }
-
-  // tornado on the ground
-  if (world.disasterBlip) {
-    const [mx, mz] = toMap(world.disasterBlip.x, world.disasterBlip.z);
-    g.strokeStyle = '#8fd0ff';
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(mx, mz, 5 + Math.sin(performance.now() * 0.01) * 2, 0, Math.PI * 2);
-    g.stroke();
-  }
-
-  // bounty mark
-  if (world.bountyBlip) {
-    const [mx, mz] = toMap(world.bountyBlip.x, world.bountyBlip.z);
-    g.fillStyle = '#d0a020';
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.01) * 1.2, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // armored cash truck
-  if (world.truckBlip) {
-    const [mx, mz] = toMap(world.truckBlip.x, world.truckBlip.z);
-    g.fillStyle = '#ffd24a';
-    g.fillRect(mx - 3.5, mz - 3.5, 7, 7);
-  }
-
-  // fleeing vigilante target
-  if (world.vigBlip) {
-    const [mx, mz] = toMap(world.vigBlip.x, world.vigBlip.z);
-    g.fillStyle = '#ff4a3d';
-    g.beginPath();
-    g.arc(mx, mz, 4 + Math.sin(performance.now() * 0.012) * 1.4, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // waypoint
-  if (world.waypoint) {
-    const [mx, mz] = toMap(world.waypoint.x, world.waypoint.z);
-    g.fillStyle = '#4ad2ff';
-    g.beginPath();
-    g.arc(mx, mz, 4, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // ride-hail passenger / drop-off pin
-  if (world.rideBlip) {
-    const [mx, mz] = toMap(world.rideBlip.x, world.rideBlip.z);
-    g.fillStyle = '#ffd24a';
-    g.beginPath();
-    g.moveTo(mx, mz - 4); g.lineTo(mx + 3.6, mz + 3); g.lineTo(mx - 3.6, mz + 3);
-    g.closePath();
-    g.fill();
-  }
-
-  // blackout substation
-  if (world.blackoutBlip) {
-    const [mx, mz] = toMap(world.blackoutBlip.x, world.blackoutBlip.z);
-    g.fillStyle = Math.floor(performance.now() * 0.006) % 2 === 0 ? '#ffd24a' : '#5a5a20';
-    g.fillRect(mx - 3, mz - 3, 6, 6);
-  }
-
-  // cops
-  for (const cop of world.cops) {
-    if (cop.dead) continue;
-    const [mx, mz] = toMap(cop.pos.x, cop.pos.z);
-    g.fillStyle = '#4a8cff';
-    g.beginPath();
-    g.arc(mx, mz, 3, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // police helicopters
-  for (const ph of world.policeHelis) {
-    if (ph.dead) continue;
-    const [mx, mz] = toMap(ph.pos.x, ph.pos.z);
-    g.fillStyle = '#ff9a3d';
-    g.beginPath();
-    g.arc(mx, mz, 3.5, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  // rideable helicopters
-  for (const hl of world.helis) {
-    if (hl.dead || hl === world.player.inHeli) continue;
-    const [mx, mz] = toMap(hl.pos.x, hl.pos.z);
-    g.fillStyle = '#eaeaea';
-    g.font = 'bold 9px Arial';
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText('H', mx, mz);
-  }
+  drawMapMarkers(g,world,toMap,{size:14,filter:false});
 
   // player arrow
-  const p = world.player.inCar || world.player.inHeli || world.player;
   const [mx, mz] = toMap(p.pos.x, p.pos.z);
-  const h = p === world.player ? world.player.heading : p.heading;
   g.save();
   g.translate(mx, mz);
-  g.rotate(Math.PI - h);
+  g.rotate(Math.PI - h + projection.rotation);
   // sight cone ahead of the player, then the arrowhead
   g.fillStyle = 'rgba(85,230,255,0.16)';
   g.beginPath();
@@ -641,5 +336,13 @@ function drawMinimap(world) {
   g.lineTo(-4.5, 5);
   g.closePath();
   g.fill();
+  g.restore();
+
+  // North indicator and range remain readable at every heading.
+  const [nx, ny] = projection.edge(p.pos.x, p.pos.z - 10000, 15);
+  g.save(); g.font = 'bold 10px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#071016'; g.fillRect(nx - 7, ny - 7, 14, 14);
+  g.fillStyle = '#f4eee3'; g.fillText('N', nx, ny);
+  g.font = '9px Arial'; g.textAlign = 'right'; g.fillText(Math.round(projection.range) + ' m', size - 6, size - 7);
   g.restore();
 }

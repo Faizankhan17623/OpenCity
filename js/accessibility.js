@@ -47,7 +47,7 @@ export function initAccessibility(w, h) {
   s.binds = s.binds || {};
   s.mapPalette = s.mapPalette || 'default';
   if (s.aimAssist === undefined) s.aimAssist = false;
-  if (s.hudScale === undefined) s.hudScale = 1;
+  s.hudScale = Number.isFinite(s.hudScale) ? Math.max(.7,Math.min(1.5,s.hudScale)) : 1;
   if (s.hudAutoScale === undefined) s.hudAutoScale = true;
   if (s.reduceMotion === undefined) s.reduceMotion = false;
 
@@ -78,6 +78,7 @@ function applyBinds() {
 // Every HUD block, scaled about the corner or edge it is anchored to, so nothing
 // drifts off-screen. The base transform is the element's own CSS centring.
 const HUD_SCALED = [
+  ['level-readout', 'top center', 'translateX(-50%) '],
   ['topright', 'top right', ''], ['bottomleft', 'bottom left', ''],
   ['speed', 'bottom right', ''], ['weapon', 'bottom right', ''], ['mission', 'top left', ''],
   ['vehicle-launcher', 'bottom right', ''],

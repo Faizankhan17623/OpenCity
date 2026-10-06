@@ -12,6 +12,11 @@ export const HALF = CITY / 2;
 export const roadCenter = (i) => -HALF + ROAD / 2 + i * (BLOCK + ROAD);
 export const blockStart = (i) => -HALF + ROAD + i * (BLOCK + ROAD);
 
+function geometryDimension(value, fallback = 1) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0.001, Math.min(10000, value));
+}
+
 // Building facades: a wall map + an emissive map (lit windows only, used at night).
 function windowTextures(base) {
   const c = document.createElement('canvas');
@@ -129,7 +134,8 @@ function helipadTexture() {
   return t;
 }
 
-export function buildCity(scene) {
+export function buildCity(scene, { authoredLots = [] } = {}) {
+  const reservedLots = new Set(authoredLots.map(lot => `${lot[0]}:${lot[1]}`));
   const buildings = [];
   const walks = [];
   const colliders = [];   // {x0,z0,x1,z1,h}
@@ -216,6 +222,7 @@ export function buildCity(scene) {
   const antennaGeo = new THREE.CylinderGeometry(0.08, 0.08, 7, 4);
 
   function addTree(x, z) {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return;
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.set(x, 0.8, z);
     trunk.castShadow = true;
@@ -244,9 +251,11 @@ export function buildCity(scene) {
       walk.position.set(cx, 0.12, cz);
       walk.receiveShadow = true;
       scene.add(walk);
-      walks.push({ bi, bj, x: cx, z: cz, mesh: walk });
+      walks.push({ bi, bj, x: cx, z: cz, mesh: walk, authored: reservedLots.has(`${bi}:${bj}`) });
 
       pedRects.push({ x0: sx + 2, z0: sz + 2, x1: sx + BLOCK - 2, z1: sz + BLOCK - 2 });
+
+      if (reservedLots.has(`${bi}:${bj}`)) continue;
 
       // Landmarks own these lots; do not generate apartment towers through them.
       if ((bi === 2 && bj === 7) || (bi === 7 && bj === 2) || (bi === 5 && bj === 5)) continue;
@@ -282,9 +291,9 @@ export function buildCity(scene) {
         for (let lj = 0; lj < 2; lj++) {
           const lotX = sx + 5 + li * 25 + 12.5;
           const lotZ = sz + 5 + lj * 25 + 12.5;
-          const w = 17 + random() * 6;
-          const d = 17 + random() * 6;
-          const hgt = 12 + Math.floor(random() * 9) * 6;
+          const w = geometryDimension(17 + random() * 6);
+          const d = geometryDimension(17 + random() * 6);
+          const hgt = geometryDimension(12 + Math.floor(random() * 9) * 6);
           const set = winSets[(random() * winSets.length) | 0];
           const sideMat = new THREE.MeshStandardMaterial({
             map: set.map,
@@ -374,7 +383,10 @@ export function buildCity(scene) {
 
   const city = { colliders, pedRects, roadXs, roadZs, spawn, helipads, windowMats, lampGlowMat: glowMat, bulbMat, buildings, walks, roadMats };
   city.roads = buildRoadDetails(scene, { roadXs, roadZs, roadWidth: ROAD, blockSize: BLOCK, surfaceMap: asphalt.map });
-  city.district = createDistrictManager(scene, city);
+  city.authoredLots = [...reservedLots];
+  // Authored lots have their own paving and facades; the procedural streamer
+  // must not add kerbs or furniture through those reserved footprints.
+  city.district = createDistrictManager(scene, { ...city, walks: walks.filter(w => !w.authored) });
   return city;
 }
 
@@ -440,10 +452,15 @@ function nearbyColliders(pos, r, colliders) {
 
 // Push a circle (pos, r) out of every AABB collider it overlaps.
 // Pass maxY to ignore colliders shorter than the entity's altitude (helicopters).
-export function resolveCircle(pos, r, colliders, maxY = -Infinity) {
+export function resolveCircle(pos, r, colliders, maxY = -Infinity, height = 1.8) {
+  const feet = Number.isFinite(maxY) ? maxY : (Number.isFinite(pos.y) ? pos.y : 0);
+  const head = feet + Math.max(0, height);
   let hit = null;
   for (const c of nearbyColliders(pos, r, colliders)) {
     if (maxY > (c.h ?? Infinity)) continue;
+    if (c.y0 != null && head <= c.y0 + .001) continue;
+    // Authored low paving remains a traversable step, not an invisible wall.
+    if (c.step && (c.roofY ?? c.h) <= feet + .35) continue;
     const cx = Math.max(c.x0, Math.min(pos.x, c.x1));
     const cz = Math.max(c.z0, Math.min(pos.z, c.z1));
     let dx = pos.x - cx;
@@ -482,7 +499,8 @@ export function groundHeight(pos, colliders, pad = 0.1, probeY = pos.y) {
   let g = 0;
   for (const c of nearbyColliders(pos, pad + 0.5, colliders)) {
     if (pos.x < c.x0 - pad || pos.x > c.x1 + pad || pos.z < c.z0 - pad || pos.z > c.z1 + pad) continue;
-    const top = (c.h ?? 0) - 0.3; // collider tops sit 0.3 above the visible roof
+    if (c.walkable === false) continue;
+    const top = c.roofY ?? ((c.h ?? 0) - 0.3); // legacy collider tops sit 0.3 above the visible roof
     if (top > g && probeY >= top - 0.5) g = top;
   }
   return g;
@@ -491,7 +509,7 @@ export function groundHeight(pos, colliders, pad = 0.1, probeY = pos.y) {
 // True if a point is inside any collider that reaches above the point's height.
 export function pointBlocked(pos, colliders, pad = 0.3) {
   for (const c of nearbyColliders(pos, pad + 0.5, colliders)) {
-    if (pos.y > (c.h ?? Infinity)) continue;
+    if (pos.y > (c.h ?? Infinity) || (c.y0 != null && pos.y < c.y0)) continue;
     if (pos.x > c.x0 - pad && pos.x < c.x1 + pad && pos.z > c.z0 - pad && pos.z < c.z1 + pad) return true;
   }
   return false;

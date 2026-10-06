@@ -76,18 +76,50 @@ function material(color, roughness = .8, metalness = 0) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
 }
 
+function hardenIndexedGeometry(geometry, areaEpsilonSq = 1e-16) {
+  const positions = geometry.getAttribute('position');
+  const index = geometry.index;
+  if (!positions || !index || index.count < 3) return geometry;
+
+  const finiteVertex = new Uint8Array(positions.count);
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+    finiteVertex[i] = Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? 1 : 0;
+    if (!finiteVertex[i]) positions.setXYZ(i, 0, 0, 0);
+  }
+  positions.needsUpdate = true;
+
+  const validFaces = [];
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i + 2 < index.count; i += 3) {
+    const ia = index.getX(i), ib = index.getX(i + 1), ic = index.getX(i + 2);
+    if (!finiteVertex[ia] || !finiteVertex[ib] || !finiteVertex[ic]) continue;
+    a.fromBufferAttribute(positions, ia);
+    b.fromBufferAttribute(positions, ib);
+    c.fromBufferAttribute(positions, ic);
+    const areaSq = b.sub(a).cross(c.sub(a)).lengthSq();
+    if (!Number.isFinite(areaSq) || areaSq <= areaEpsilonSq) continue;
+    validFaces.push(ia, ib, ic);
+  }
+  geometry.setIndex(validFaces);
+  return geometry;
+}
+
 // A handful of draw calls for thousands of repeated frames, bricks and markings.
 function boxBatcher(group, castShadow = true) {
   const batches = new Map();
   return {
     add(mat, x, y, z, w, h, d, yaw = 0) {
+      const values = [x, y, z, w, h, d, yaw];
+      if (!values.every(Number.isFinite) || values.some(value => Math.abs(value) > 10000) ||
+          w <= 1e-6 || h <= 1e-6 || d <= 1e-6) return;
       if (!batches.has(mat)) batches.set(mat, []);
       batches.get(mat).push({ x, y, z, w, h, d, yaw });
     },
     finish() {
       let instances = 0;
       const transform = new THREE.Object3D();
-      const geometry = new THREE.BoxGeometry(1, 1, 1);
+      const geometry = hardenIndexedGeometry(new THREE.BoxGeometry(1, 1, 1));
       for (const [mat, boxes] of batches) {
         const mesh = new THREE.InstancedMesh(geometry, mat, boxes.length);
         boxes.forEach((b, i) => {
@@ -351,17 +383,24 @@ export function buildSpawnDistrict(scene, city, area = { bi: 4, bj: 4, props: tr
     city.colliders.push({ x0: px - .1, z0: sz - .1, x1: px + .1, z1: sz + .1, h: 3.9, detail: true });
   }
 
-  const crownGeometry = new THREE.IcosahedronGeometry(1, 2);
+  const crownGeometry = hardenIndexedGeometry(new THREE.IcosahedronGeometry(1, 2));
   const vertices = crownGeometry.attributes.position;
   for (let i = 0; i < vertices.count; i++) {
     const x = vertices.getX(i), y = vertices.getY(i), z = vertices.getZ(i);
-    const r = .92 + .13 * Math.sin(x * 31 + y * 19 + z * 13);
-    vertices.setXYZ(i, x * r, y * r, z * r);
+    const lengthSq = x * x + y * y + z * z;
+    if (!Number.isFinite(lengthSq) || lengthSq <= 1e-12) continue;
+    const inverseLength = 1 / Math.sqrt(Math.max(lengthSq, 1e-12));
+    const nx = x * inverseLength, ny = y * inverseLength, nz = z * inverseLength;
+    const r = Math.max(.75, Math.min(1.1, .92 + .13 * Math.sin(nx * 31 + ny * 19 + nz * 13)));
+    vertices.setXYZ(i, nx * r, ny * r, nz * r);
   }
+  hardenIndexedGeometry(crownGeometry);
   crownGeometry.computeVertexNormals();
-  const foliage = new THREE.InstancedMesh(crownGeometry, material('#466347', .97), crowns.length);
+  const validCrowns = crowns.filter(c => [c.x, c.y, c.z].every(Number.isFinite) &&
+    Math.max(Math.abs(c.x), Math.abs(c.y), Math.abs(c.z)) <= 10000);
+  const foliage = new THREE.InstancedMesh(crownGeometry, material('#466347', .97), validCrowns.length);
   const treeTransform = new THREE.Object3D();
-  crowns.forEach((c, i) => {
+  validCrowns.forEach((c, i) => {
     treeTransform.position.set(c.x, c.y, c.z);
     treeTransform.scale.set(1.1, 1.35, 1.0); treeTransform.updateMatrix();
     foliage.setMatrixAt(i, treeTransform.matrix);
@@ -369,7 +408,7 @@ export function buildSpawnDistrict(scene, city, area = { bi: 4, bj: 4, props: tr
   });
   foliage.castShadow = true; foliage.receiveShadow = true; foliage.computeBoundingSphere(); group.add(foliage);
   const counts = batch.finish();
-  const stats = { buildings: buildings.length, windows: windowCount, trees: crowns.length / 5, detailInstances: counts.instances, detailBatches: counts.drawCalls + 1, seed: 17623 };
+  const stats = { buildings: buildings.length, windows: windowCount, trees: validCrowns.length / 5, detailInstances: counts.instances, detailBatches: counts.drawCalls + 1, seed: 17623 };
   const addedWindows = new Set(city.windowMats.slice(previousWindowCount));
   const addedColliders = new Set(city.colliders.slice(previousColliderCount));
   invalidateColliderGrid(city.colliders);

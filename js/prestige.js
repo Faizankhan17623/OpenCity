@@ -4,7 +4,7 @@ import { pointBlocked } from './city.js';
 import { showToast, showNews, showMissionMsg } from './hud.js';
 import { sfxMissionPass } from './sound.js';
 import { addFlash } from './effects.js';
-import { mirrorActiveSlot } from './saveslots.js';
+import { activeSlot, slotBlob, writeSlotBlob } from './saveslots.js';
 
 // New Game+: the golden pedestal. A crowned King can lay the run down and
 // start again — keeping the crown, the wardrobe, the garage and the trophies,
@@ -44,7 +44,7 @@ export function initPrestige(scene, world, save, opts) {
 function doPrestige(world) {
   const p = (world.prestige | 0) + 1;
   let old = {};
-  try { old = JSON.parse(localStorage.getItem(world.prestigeState.saveKey) || '{}') || {}; } catch {}
+  try { old = slotBlob(activeSlot()) || {}; } catch { return; }
   // what a king keeps: the crown, the closet, the garage, the trophy shelf
   const kept = {
     money: 0,
@@ -59,11 +59,7 @@ function doPrestige(world) {
     ach: old.ach,
     settings: old.settings,
   };
-  try { localStorage.setItem(world.prestigeState.saveKey, JSON.stringify(kept)); } catch {}
-  // Save slots mirror the live key into the active slot, and bootActiveSlot()
-  // copies the slot back over it on load. Without this the reload below would
-  // restore the pre-prestige save and silently undo New Game+.
-  mirrorActiveSlot();
+  try { writeSlotBlob(activeSlot(), kept); } catch (e) { showToast(e.message); return; }
   location.reload();
 }
 

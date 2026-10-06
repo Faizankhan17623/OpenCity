@@ -1,8 +1,10 @@
+import { updateCharacterAnimation, disposeCharacterAsset } from './gltfChar.js';
 import * as THREE from 'three';
 import { equipCharacter, poseWeapon, enemyShot } from './combat-view.js';
 import { makeVehicle, physStep, separateCars, darkenCar } from './car.js';
 import { addExplosion, addTracer, addFlash, addSparks, addSmoke } from './effects.js';
-import { roadCenter, HALF, N, resolveCircle } from './city.js';
+import { roadCenter, N, resolveCircle } from './city.js';
+import { segmentClear, outsideCamera, dispatchDue, selectRoadSpawn, selectAirSpawn, createRoadNetwork, planRoadRoute } from './pursuitNavigation.js';
 import { createCharacter, animateWalk } from './characters.js';
 import { showNews } from './hud.js';
 import { policeHeat, policeExtra } from './mayor.js';
@@ -37,43 +39,65 @@ function wrapAngle(a) {
 
 function focusPos(world) {
   const p = world.player;
-  return p.inCar ? p.inCar.pos : p.inHeli ? p.inHeli.pos : p.pos;
+  return p.inCar?.pos || p.inHeli?.pos || p.inPlane?.pos || p.inBoat?.pos || p.pos;
+}
+
+const ROADS = Array.from({ length: N + 1 }, (_, i) => roadCenter(i));
+
+function hiddenPoint(world, point, radius = 4) {
+  world.camera?.updateMatrixWorld();
+  return outsideCamera(point, world.camera, radius);
+}
+
+function roadSpawn(world, min = 85) {
+  return selectRoadSpawn({ target: focusPos(world), roads: ROADS, colliders: world.city.colliders,
+    vehicles: [...world.cops, ...world.parked, ...world.traffic, world.player.inCar].filter(Boolean),
+    hidden: (point, radius) => hiddenPoint(world, point, radius), min, max: min + 100 });
+}
+
+function roadNetwork(world) {
+  return world.pursuitRoads ||= createRoadNetwork(ROADS, world.city.colliders);
+}
+
+function retreatPoint(world, position, focus) {
+  return roadNetwork(world).nodes.reduce((best, node) => {
+    const score = p => Math.hypot(p.x - focus.x, p.z - focus.z) - .15 * Math.hypot(p.x - position.x, p.z - position.z);
+    return !best || score(node) > score(best) ? node : best;
+  }, null);
+}
+
+function roadAim(world, cop, destination, dt) {
+  const direct = Math.hypot(cop.pos.x - destination.x, cop.pos.z - destination.z) < 27
+    && (destination.y || 0) < 8
+    && segmentClear({ x: cop.pos.x, y: 1.5, z: cop.pos.z }, { x: destination.x, y: 1.5, z: destination.z }, world.city.colliders, 2.2);
+  if (direct) { cop.route = []; return destination; }
+  cop.routeT = (cop.routeT || 0) - dt;
+  const moved = !cop.routeFocus || Math.hypot(destination.x - cop.routeFocus.x, destination.z - cop.routeFocus.z) > 18;
+  if (!cop.route?.length || (cop.routeT <= 0 && moved)) {
+    cop.route = planRoadRoute(cop.pos, destination, roadNetwork(world), world.city.colliders);
+    cop.routeFocus = { x: destination.x, z: destination.z }; cop.routeT = 1.5;
+  }
+  while (cop.route.length && Math.hypot(cop.route[0].x - cop.pos.x, cop.route[0].z - cop.pos.z) < 6) cop.route.shift();
+  return cop.route[0] || null;
 }
 
 function spawnCop(world) {
-  const target = focusPos(world);
-  // pick a point on a random road, 60-110 units away from the player
-  let x = 0;
-  let z = 0;
-  for (let tries = 0; tries < 12; tries++) {
-    const road = roadCenter((Math.random() * (N + 1)) | 0);
-    const along = (Math.random() * 2 - 1) * (HALF - 14);
-    if (Math.random() < 0.5) { x = road; z = along; } else { x = along; z = road; }
-    const d = Math.hypot(x - target.x, z - target.z);
-    if (d > 55 && d < 130) break;
-  }
-  const heading = Math.atan2(target.x - x, target.z - z);
-  const cop = makeVehicle(world.scene, x, z, heading, '#f2f2f2', { police: true });
+  const point = roadSpawn(world);
+  if (!point) return false;
+  const cop = makeVehicle(world.scene, point.x, point.z, point.heading, '#f2f2f2', { police: true });
   cop.stuckT = 0;
   cop.reverseT = 0;
   cop.flashT = 0;
   cop.deadT = 0;
   world.cops.push(cop);
+  return true;
 }
 
 // SWAT van: an armored cop that unloads a fire team when it corners you.
 function spawnSwatVan(world) {
-  const target = focusPos(world);
-  let x = 0;
-  let z = 0;
-  for (let tries = 0; tries < 12; tries++) {
-    const road = roadCenter((Math.random() * (N + 1)) | 0);
-    const along = (Math.random() * 2 - 1) * (HALF - 14);
-    if (Math.random() < 0.5) { x = road; z = along; } else { x = along; z = road; }
-    const d = Math.hypot(x - target.x, z - target.z);
-    if (d > 60 && d < 140) break;
-  }
-  const van = makeVehicle(world.scene, x, z, Math.atan2(target.x - x, target.z - z), '#1a2438', { police: true, health: 250 });
+  const point = roadSpawn(world, 100);
+  if (!point) return false;
+  const van = makeVehicle(world.scene, point.x, point.z, point.heading, '#1a2438', { police: true, health: 250 });
   const top = new THREE.Mesh(
     new THREE.BoxGeometry(2.1, 1.1, 3.6),
     new THREE.MeshStandardMaterial({ color: 0x1a2438, metalness: 0.5, roughness: 0.5 })
@@ -88,12 +112,13 @@ function spawnSwatVan(world) {
   van.deadT = 0;
   world.cops.push(van);
   showNews('SWAT unit dispatched downtown');
+  return true;
 }
 
 function unloadSwat(world, van) {
   van.unloaded = true;
   for (let i = 0; i < 4; i++) {
-    const ch = createCharacter({ shirt: '#20293d', pants: '#141a28', skin: '#c98e63' });
+    const ch = createCharacter({ shirt: '#20293d', pants: '#141a28', skin: '#c98e63', asset: 'officer', animationManaged: true });
     equipCharacter(ch, 1);
     world.scene.add(ch.group);
     const a = (i / 4) * Math.PI * 2;
@@ -130,6 +155,7 @@ function killSwat(world, o) {
 function removeSwat(world, i) {
   const o = world.swat[i];
   world.scene.remove(o.mesh);
+  disposeCharacterAsset(o.ch);
   const ti = world.targets.indexOf(o.target);
   if (ti >= 0) world.targets.splice(ti, 1);
   world.swat.splice(i, 1);
@@ -149,10 +175,20 @@ function updateSwat(world, dt) {
       if (o.deadT > 14) removeSwat(world, i);
       continue;
     }
-    if (world.wanted < 4) { // heat's off — they pack up
-      removeSwat(world, i);
+    if (world.wanted < 4) {
+      if (!o.retreatPos) o.retreatPos = retreatPoint(world, o.pos, focus);
+      const aim = roadAim(world, o, o.retreatPos, dt);
+      if (aim) {
+        o.heading = Math.atan2(aim.x - o.pos.x, aim.z - o.pos.z); o.mesh.rotation.y = o.heading;
+        _sv.set(Math.sin(o.heading), 0, Math.cos(o.heading)); o.pos.addScaledVector(_sv, 3.5 * dt);
+        resolveCircle(o.pos, .4, world.city.colliders); o.animT += dt * 6; animateWalk(o.ch, o.animT, .7);
+      }
+      poseWeapon(o.ch, false);
+      updateCharacterAnimation(o.ch, dt, {speed: aim ? 3.5 : 0, grounded: true});
+      if (Math.hypot(focus.x - o.pos.x, focus.z - o.pos.z) > 65 && hiddenPoint(world, { x: o.pos.x, y: 1.1, z: o.pos.z }, 2)) removeSwat(world, i);
       continue;
     }
+    o.retreatPos = null;
     const d = Math.hypot(focus.x - o.pos.x, focus.z - o.pos.z);
     o.heading = Math.atan2(focus.x - o.pos.x, focus.z - o.pos.z);
     o.mesh.rotation.y = o.heading;
@@ -165,6 +201,7 @@ function updateSwat(world, dt) {
     }
     o.ch.rArm.rotation.x = -Math.PI / 2; // rifle up
     poseWeapon(o.ch, true);
+    updateCharacterAnimation(o.ch, dt, {speed: d > 9 ? 3.2 : 0, grounded: true});
     o.shootT -= dt;
     if (o.shootT <= 0 && d < 32 && onFoot && player.pos.y < 10) {
       o.shootT = 1.6 + Math.random() * 0.6;
@@ -180,6 +217,9 @@ function updateSwat(world, dt) {
 
 function spawnDrone(world) {
   const focus = focusPos(world);
+  const point = selectAirSpawn({ target: focus, colliders: world.city.colliders, aircraft: world.drones,
+    hidden: (p, r) => hiddenPoint(world, p, r), min: 80, max: 115, altitude: 30, radius: 2 });
+  if (!point) return false;
   const mesh = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.55),
@@ -192,8 +232,7 @@ function spawnDrone(world) {
   );
   eye.position.y = -0.2;
   mesh.add(eye);
-  const ang = Math.random() * Math.PI * 2;
-  mesh.position.set(focus.x + Math.sin(ang) * 40, 22, focus.z + Math.cos(ang) * 40);
+  mesh.position.set(point.x, point.y, point.z);
   world.scene.add(mesh);
   const drone = {
     mesh,
@@ -235,7 +274,7 @@ function updateDrones(world, dt) {
   const focus = focusPos(world);
   const desired = world.wanted >= 2 ? Math.min(2, world.wanted - 1) : 0;
   const alive = world.drones.filter((d) => !d.dead && !d.falling).length;
-  if (alive < desired) spawnDrone(world);
+  if (dispatchDue(world.policeDispatch ||= {}, 'drone', dt, alive < desired, 5)) spawnDrone(world);
 
   for (let i = world.drones.length - 1; i >= 0; i--) {
     const d = world.drones[i];
@@ -248,7 +287,12 @@ function updateDrones(world, dt) {
       if (d.pos.y <= 0.4) killDrone(world, d);
       continue;
     }
-    if (world.wanted < 2) { removeDrone(world, i); continue; }
+    if (world.wanted < 2) {
+      _sv.subVectors(d.pos, focus).setY(0); if (_sv.lengthSq() < 1) _sv.set(1, 0, 0);
+      _sv.normalize(); d.pos.addScaledVector(_sv, dt * 18); d.pos.y += dt * 4;
+      if (d.pos.distanceTo(focus) > 110 && hiddenPoint(world, d.pos, 2)) removeDrone(world, i);
+      continue;
+    }
 
     d.orbitA += dt * 0.7;
     _sv.set(
@@ -294,21 +338,21 @@ export function updatePolice(world, dt) {
     }
   }
 
-  // spawn / despawn
+  // Reinforcements arrive over time. A failed safe-spawn search is deferred.
+  const timers = world.policeDispatch ||= {};
   const desired = world.wanted === 0 ? 0
     : Math.min(8, world.wanted + 1 + stance.extra + (world.prestige | 0));
-  const alive = world.cops.filter((c) => !c.dead && !c.van).length;
-  if (alive < desired) spawnCop(world);
-
-  // SWAT joins at 4 stars
+  const alive = world.cops.filter(c => !c.dead && !c.van).length;
+  if (dispatchDue(timers, 'car', dt, alive < desired, 3)) spawnCop(world);
   const vanDesired = world.wanted >= 5 ? 2 : world.wanted >= 4 ? 1 : 0;
-  const vansAlive = world.cops.filter((c) => !c.dead && c.van).length;
-  if (vansAlive < vanDesired) spawnSwatVan(world);
-  if (world.wanted === 0) {
-    for (const cop of world.cops) {
-      if (!cop.dead) world.scene.remove(cop.mesh);
-    }
-    world.cops = world.cops.filter((c) => c.dead);
+  const vansAlive = world.cops.filter(c => !c.dead && c.van).length;
+  if (dispatchDue(timers, 'van', dt, vansAlive < vanDesired, 8)) spawnSwatVan(world);
+  let patrols = 0, vans = 0;
+  for (const cop of world.cops) {
+    if (cop.dead) continue;
+    const leaving = cop.van ? ++vans > vanDesired : ++patrols > desired;
+    if (leaving !== !!cop.leaving) { cop.route = []; cop.retreatPos = null; }
+    cop.leaving = leaving;
   }
 
   const targetPos = focusPos(world);
@@ -345,22 +389,31 @@ export function updatePolice(world, dt) {
     const dx = targetPos.x - cop.pos.x;
     const dz = targetPos.z - cop.pos.z;
     const dist = Math.hypot(dx, dz);
-    const err = wrapAngle(Math.atan2(dx, dz) - cop.heading);
-
+    if (cop.leaving && dist > 115 && hiddenPoint(world, { x: cop.pos.x, y: 1.5, z: cop.pos.z }, 4)) {
+      world.scene.remove(cop.mesh); world.cops.splice(i, 1); continue;
+    }
+    if (cop.leaving && !cop.retreatPos) cop.retreatPos = retreatPoint(world, cop.pos, targetPos);
+    const destination = cop.leaving ? cop.retreatPos : targetPos;
+    const aim = roadAim(world, cop, destination, dt);
+    const err = aim ? wrapAngle(Math.atan2(aim.x - cop.pos.x, aim.z - cop.pos.z) - cop.heading) : 0;
+    const sp = cop.vel.length();
+    const toTurn = aim ? Math.hypot(aim.x - cop.pos.x, aim.z - cop.pos.z) : 0;
+    const next = cop.route?.[1];
+    const turnAhead = next && toTurn < 20 && Math.abs(wrapAngle(Math.atan2(next.x - aim.x, next.z - aim.z) - cop.heading)) > .55;
+    const cruise = !aim ? 0 : Math.abs(err) > .65 || turnAhead ? 7 : cop.leaving ? 17 : 22 + world.wanted;
     const ctl = {
       steer: Math.max(-1, Math.min(1, err * 2.5)),
-      throttle: 1,
+      throttle: sp > cruise + 1 ? -1 : aim ? 1 : 0,
       handbrake: false,
     };
-    if (onFoot && dist < 12) ctl.throttle = dist < 7 ? -1 : 0.35;
+    if (!cop.leaving && onFoot && dist < 12) ctl.throttle = dist < 7 ? (sp > .5 ? -1 : 0) : .35;
 
     // unstick: reverse for a moment when wedged against a wall
-    const sp = cop.vel.length();
     if (cop.reverseT > 0) {
       cop.reverseT -= dt;
       ctl.throttle = -1;
       ctl.steer = -ctl.steer;
-    } else if (sp < 1.2 && dist > 8) {
+    } else if (aim && sp < 1.2 && dist > 8) {
       cop.stuckT += dt;
       if (cop.stuckT > 1.4) {
         cop.reverseT = 1.1;
@@ -373,7 +426,7 @@ export function updatePolice(world, dt) {
     physStep(cop, ctl, dt, world.city.colliders);
 
     // SWAT van deploys its fire team once it corners you
-    if (cop.van && !cop.unloaded && dist < 24 && sp < 4) unloadSwat(world, cop);
+    if (!cop.leaving && cop.van && !cop.unloaded && dist < 24 && sp < 4) unloadSwat(world, cop);
 
     // smash through traffic and parked cars
     for (const o of world.traffic) if (!o.dead) separateCars(cop, o, false);
@@ -384,7 +437,7 @@ export function updatePolice(world, dt) {
       continue;
     }
 
-    if (player.inCar && !player.inCar.dead) {
+    if (!cop.leaving && player.inCar && !player.inCar.dead) {
       // ramming the player's car
       const imp = separateCars(cop, player.inCar, false);
       if (imp > 4) {
@@ -392,7 +445,7 @@ export function updatePolice(world, dt) {
         cop.health -= imp * 1.1;
         if (cop.health <= 0) copDie(world, cop);
       }
-    } else if (onFoot) {
+    } else if (!cop.leaving && onFoot) {
       // running the player over
       if (dist < 2.3 && sp > 7) {
         player.health -= 35;

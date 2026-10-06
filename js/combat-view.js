@@ -1,3 +1,4 @@
+import { attachCharacterWeapon, poseCharacterWeapon } from './gltfChar.js';
 import * as THREE from 'three';
 
 // Shared solid-world query for shoulder cameras and muzzle-origin fire.
@@ -61,10 +62,12 @@ export function equipCharacter(ch, index = 0) {
   weapon.group.rotation.x = Math.PI / 2;
   (ch.rElbow || ch.rArm).add(weapon.group);
   ch.weapon = weapon;
+  attachCharacterWeapon(ch, weapon);
   return weapon;
 }
 
 export function poseWeapon(ch, raised, recoil = 0, pitch = 0) {
+  if (poseCharacterWeapon(ch, raised, recoil, pitch)) return;
   if (!ch.weapon) return;
   if (raised) {
     ch.rArm.rotation.set(-Math.PI / 2 + pitch - recoil*.15, 0, 0);

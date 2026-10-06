@@ -56,6 +56,7 @@ export function updateAtms(world, dt, pressed) {
   if (!bk) return;
   const player = world.player;
   world.atmHint = null;
+  world.bankNearby = false;
 
   // savings tick over at midnight
   if (bk.day !== world.dailyDay) {
@@ -73,6 +74,9 @@ export function updateAtms(world, dt, pressed) {
   const onFoot = !player.inCar && !player.inHeli && !player.inBoat;
   bk.open = false;
   if (!onFoot) return;
+  const socket = world.city.authoredWorld?.bankSockets().find(s=>Math.hypot(player.pos.x-s.pos.x,player.pos.z-s.pos.z)<2.2 && Math.abs(player.pos.y-s.pos.y)<2.5);
+  if(socket){world.bankNearby=true;bk.open=true;world.nearKiosk=true;world.atmHint='HARBOUR MUTUAL · '+(socket.name==='socket_loan_desk'?'Loans and repayments':'Bank services')+' · <b>E</b> to speak';}
+
 
   for (const m of bk.machines) {
     const d = Math.hypot(player.pos.x - m.pos.x, player.pos.z - m.pos.z);
@@ -97,6 +101,7 @@ export function updateAtms(world, dt, pressed) {
     }
 
     bk.open = true;
+    world.bankNearby = true;
     world.nearKiosk = true; // digits bank here, not switch weapons
     world.atmHint = `CITY BANK — balance <b>$${bk.balance}</b> · 1) deposit $500 · 2) withdraw $500 · 3) deposit all — 2%/day interest`;
     if (pressed['Digit1']) {
