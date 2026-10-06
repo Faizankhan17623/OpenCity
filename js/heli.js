@@ -241,7 +241,10 @@ export function updatePoliceHelis(world, dt, hooks) {
   const desired = world.wanted >= 5 ? 2 : world.wanted >= 3 ? 1 : 0;
   // boss choppers (missions) don't count toward the wanted-level quota
   const alive = world.policeHelis.filter((h) => !h.dead && !h.leaving && !h.boss).length;
-  if (dispatchDue(world.policeDispatch ||= {}, 'heli', dt, alive < desired, 8)) {
+  const dispatch = world.policeDispatch ||= {};
+  if (desired > (dispatch.heliWanted || 0)) dispatch.heli = 0;
+  dispatch.heliWanted = desired;
+  if (dispatchDue(dispatch, 'heli', dt, alive < desired, 8)) {
     const point = selectAirSpawn({ target: focus, colliders: world.city.colliders,
       aircraft: [...world.policeHelis, ...world.helis], hidden: (p, r) => outsideCamera(p, world.camera, r) });
     if (point) {
