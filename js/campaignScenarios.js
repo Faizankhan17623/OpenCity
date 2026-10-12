@@ -128,7 +128,13 @@ export function createCampaignScenarios(world,hooks={}){
   let goal=car.scenarioRoute[car.scenarioRouteIndex];
   while(goal&&distance(car.pos,goal)<.3&&car.scenarioRouteIndex<car.scenarioRoute.length-1)goal=car.scenarioRoute[++car.scenarioRouteIndex];
   if(goal&&distance(car.pos,goal)<.3&&distance(car.pos,target)>stopRadius){car.scenarioRouteGoal=null;car.vel.set(0,0,0);return false;}
-  if(!goal){car.vel.set(0,0,0);return false;}
+  if(!goal){
+   car.vel.set(0,0,0);
+   // A route can go stale when temporary closures or traffic block its last
+   // waypoint. Retry at a bounded rate so support cars do not stay stranded.
+   if(clock>=(car.scenarioRouteRetryAt||0)){car.scenarioRouteRetryAt=clock+1;car.scenarioRouteGoal=null;}
+   return false;
+  }
   const d=distance(car.pos,goal),step=Math.min(d,speed*dt),direction=vec(goal).sub(car.pos).setY(0).normalize(),next=car.pos.clone().addScaledVector(direction,step);
   if(!segmentClear({...car.pos,y:1.25},{...next,y:1.25},colliders(),1.6,.8)){car.vel.set(0,0,0);car.scenarioRouteGoal=null;return false;}
   const traffic=[...new Set([...(world.traffic||[]),...(world.parked||[]),world.player?.inCar])].filter(other=>other&&other!==car&&!other.dead);
@@ -157,8 +163,13 @@ export function createCampaignScenarios(world,hooks={}){
   if(clear(from,to))return [vec(to)];
   // A small visibility graph around nearby AABB corners avoids the old straight
   // line walk getting stuck against the bank, a porch or a temporary roadblock.
-  const nodes=[vec(from),vec(to)],margin=.65;
-  const nearby=colliders().filter(c=>(c.h??Infinity)+.2>=level(from).y&&(c.y0??0)-.2<=level(from).y&&c.x1>=Math.min(from.x,to.x)-6&&c.x0<=Math.max(from.x,to.x)+6&&c.z1>=Math.min(from.z,to.z)-6&&c.z0<=Math.max(from.z,to.z)+6).slice(0,18);
+  const nodes=[vec(from),vec(to)],margin=1;
+  const dx=to.x-from.x,dz=to.z-from.z,lengthSq=dx*dx+dz*dz;
+  const nearby=colliders().filter(c=>(c.h??Infinity)+.2>=level(from).y&&(c.y0??0)-.2<=level(from).y&&c.x1>=Math.min(from.x,to.x)-6&&c.x0<=Math.max(from.x,to.x)+6&&c.z1>=Math.min(from.z,to.z)-6&&c.z0<=Math.max(from.z,to.z)+6).map(c=>{
+   const cx=(c.x0+c.x1)/2,cz=(c.z0+c.z1)/2,t=lengthSq?Math.max(0,Math.min(1,((cx-from.x)*dx+(cz-from.z)*dz)/lengthSq)):0;
+   const px=from.x+dx*t,pz=from.z+dz*t,qx=Math.max(c.x0,Math.min(c.x1,px)),qz=Math.max(c.z0,Math.min(c.z1,pz));
+   return {collider:c,distance:Math.hypot(px-qx,pz-qz)};
+  }).sort((a,b)=>a.distance-b.distance).slice(0,32).map(row=>row.collider);
   for(const c of nearby)for(const x of [c.x0-margin,c.x1+margin])for(const z of [c.z0-margin,c.z1+margin]){
    const p=new THREE.Vector3(x,from.y,z);if(!pointBlocked(level(p),colliders(),.32))nodes.push(p);
   }
@@ -175,10 +186,16 @@ export function createCampaignScenarios(world,hooks={}){
   if(!a.walkGoal||distance(a.walkGoal,target)>.8||a.walkColliderCount!==colliders().length){
    a.walkRoute=pedestrianRoute(a.pos,target);a.walkGoal=vec(target);a.walkColliderCount=colliders().length;
   }
-  while(a.walkRoute?.length>1&&distance(a.pos,a.walkRoute[0])<.4)a.walkRoute.shift();
+ while(a.walkRoute?.length>1&&distance(a.pos,a.walkRoute[0])<.4)a.walkRoute.shift();
   const goal=a.walkRoute?.[0];if(!goal)return false;
-  const d=distance(a.pos,goal),direction=vec(goal).sub(a.pos).setY(0).normalize(),next=a.pos.clone().addScaledVector(direction,Math.min(d,speed*dt));next.y=a.pos.y+.9;
-  if(pointBlocked(next,colliders(),.3)){a.walkGoal=null;return false;}
+  const d=distance(a.pos,goal),direction=vec(goal).sub(a.pos).setY(0).normalize(),step=Math.min(d,speed*dt),next=a.pos.clone().addScaledVector(direction,step);
+  const level=point=>({x:point.x,y:Math.max(a.pos.y||0,target.y||0)+.9,z:point.z});
+  const clearStep=point=>!pointBlocked(level(point),colliders(),.3)&&segmentClear(level(a.pos),level(point),colliders(),.3,.2);
+  if(!clearStep(next)){
+   const heading=Math.atan2(direction.x,direction.z),turns=[-Math.PI/6,Math.PI/6,-Math.PI/3,Math.PI/3,-Math.PI/2,Math.PI/2,-2*Math.PI/3,2*Math.PI/3,Math.PI];let best=null,bestScore=Infinity;
+   for(const turn of turns){const angle=heading+turn,candidate=a.pos.clone().add(new THREE.Vector3(Math.sin(angle)*step,0,Math.cos(angle)*step));if(!clearStep(candidate))continue;const score=distance(candidate,goal)+Math.abs(turn)*.35;if(score<bestScore){best=candidate;bestScore=score;}}
+   if(!best){a.walkGoal=null;return false;}next.copy(best);
+  }
   next.y=groundHeight(next,colliders(),.25,a.pos.y);a.pos.copy(next);a.mesh.rotation.y=Math.atan2(direction.x,direction.z);return false;
  }
  function ensure(a){
@@ -234,7 +251,9 @@ export function createCampaignScenarios(world,hooks={}){
       }
       const door=passenger.boardingDoor;if(!door)continue;
       setVehiclePanel(car,door.name,true);
-      if(walk(passenger,door.point,dt,2.8)){passenger.state='seated';setVehiclePanel(car,door.name,false);}
+      // Passengers hurry to the vehicle once the player confirms the transfer;
+      // slow walking around city blocks made a short pickup hold look stuck.
+      if(walk(passenger,door.point,dt,3.6)){passenger.state='seated';setVehiclePanel(car,door.name,false);}
      }
      if(passenger.state==='seated'){
       const seats=[[.72,0,0],[-.03,0,-.82],[.72,0,-.82]],offset=new THREE.Vector3(...seats[passenger.seat]);offset.applyAxisAngle(new THREE.Vector3(0,1,0),car.heading);
@@ -322,7 +341,13 @@ export function createCampaignScenarios(world,hooks={}){
    if(index<=5)return vehicle('m02-bike',resolve(index<3?'workshop':'hotel'),{modelId:'oc_scooter_01',bike:true});
    return vehicle('m02-sedan',resolve('coast'),{modelId:'oc_sedan_01'});
   }
-  if(!definition?.trial||m.id==='M34'&&index<4||m.id==='M36'&&index>2)return null;
+  if(m.id==='M36'&&index>2){
+   if(trial&&(checkpoint().trial?.returned||retainedTrial?.returned)){
+    retainedTrial={...checkpoint().trial,returned:true};removeCar(trial);trial=null;
+   }
+   return null;
+  }
+  if(!definition?.trial||m.id==='M34'&&index<4)return null;
   if(retainedTrial?.returned&&!a.replay)return null;
   if(!trial||!cars.has(TRIAL_VEHICLE_ID)){
    const saved=a.replay?null:recoveredTrial||a.scenarioState?.trial||retainedTrial;
@@ -361,7 +386,10 @@ export function createCampaignScenarios(world,hooks={}){
  }
  function updatePursuit(a,dt){
   if(!pursuit)return;const spec=definition.pursuit;
-  const active=a.stage>=spec.from&&a.stage<=spec.to;
+  const boardingRequired=(definition.passengers||[]).some(passenger=>transfer(a,mission,passenger)==='aboard'&&passenger.names.some((_,i)=>entities.get('passenger:'+passenger.id+':'+i)?.state!=='seated'));
+  // Let a committed passenger reach the stopped car before the pursuit closes
+  // in. The chase begins as soon as the transfer is physically seated.
+  const active=a.stage>=spec.from&&a.stage<=spec.to&&!boardingRequired;
   for(const c of pursuit.cars)showVehicle(c,active);
   if(!active||pursuit.escaped)return;
   const atSanctuary=distance(focus(),resolve(spec.sanctuary))<21;
@@ -557,13 +585,13 @@ export function createCampaignScenarios(world,hooks={}){
  }
  function update(dt){
   if(disposed||!Number.isFinite(dt)||dt<0)return;
-  poll+=dt;const reconcile=poll>=.25;
+  poll+=dt;const reconcile=poll>=.25||dt===0;
   if(reconcile){poll=0;polledActive=current();ensure(polledActive);}
   const a=polledActive;if(!a||!definition||a.failure)return;
   dt=Math.min(dt,.1);clock+=dt;
   if(reconcile&&definition.switchVehicles)requestVehicle(mission,{...mission.stages[a.stage],index:a.stage});
   if(reconcile&&definition.trial&&((a.id==='M34'&&a.stage>=4)||(a.id==='M35')||(a.id==='M36'&&a.stage<=2)))requestVehicle(mission,{...mission.stages[a.stage],index:a.stage});
-  reconcileTransfers(a,dt);if(reconcile)updateClosure(a);updatePursuit(a,dt);updateProtection(a,dt);updateConvoy(a,dt);updateRace(a,dt);
+  reconcileTransfers(a,dt);updateClosure(a);updatePursuit(a,dt);updateProtection(a,dt);updateConvoy(a,dt);updateRace(a,dt);
   if(trial&&a.id==='M36'&&observed(a,mission,[2,0])?.trialReturned){retainedTrial={...checkpoint().trial,returned:true};removeCar(trial);trial=null;}
   for(const car of cars.values())if(!world.activity||world.activity.active(car))updateVehicleAsset(car,dt,car.vel.length()>.3,false);
   for(const actor of entities.values()){

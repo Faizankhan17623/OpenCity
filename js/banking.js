@@ -1,10 +1,10 @@
-import { loanPolicyText, creditCapacity, economyPolicy } from './economyPolicy.js';
+import { loanPolicyText, creditCapacity, economyPolicy, borrowableMissions } from './economyPolicy.js';
 import { showToast, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass } from './sound.js';
 import * as api from './bankapi.js';
 import { CASH_CAP } from './wallet.js';
 import { clearInput, pressedModifiers } from './input.js';
-import { initBankLoans, loanSave, loanDebt, borrowLocal, repayLocal, tickBankLoans } from './bankLoans.js';
+import { initBankLoans, loanSave, loanDebt, quoteLocalBorrow, borrowLocal, repayLocal, tickBankLoans } from './bankLoans.js';
 
 // CITY BANK. Extends world.bank (created in atm.js) with an account number,
 // a cash-in-hand cap and an overlay for deposits, withdrawals and transfers.
@@ -34,6 +34,8 @@ function makeAccountNumber() {
 let ui = null;
 let world_ = null;
 let linkIdentity, busy = false;
+let pendingBorrowQuote = null, missionOptionsSignature = '';
+let bridgeMissionOptions = [], bridgeMissionOptionsAt = -Infinity;
 
 function buildUI() {
   if (ui) return ui;
@@ -98,9 +100,17 @@ function buildUI() {
       </div>
       <section aria-label="Local game loans" style="margin-bottom:12px">
         <div id="bank-debt"></div>
+        <label for="bank-loan-purpose">Loan purpose</label>
+        <select id="bank-loan-purpose" style="display:block;width:100%;max-width:100%;padding:8px;margin:6px 0;background:#142c2f;color:#f4eee3;border:1px solid #88d4c0">
+          <option value="general">General-purpose loan</option>
+          <option value="bridge">Mission advance</option>
+        </select>
+        <label id="bank-bridge-label" for="bank-bridge-mission" hidden>Unlocked story mission</label>
+        <select id="bank-bridge-mission" aria-label="Unlocked story mission" style="display:block;width:100%;max-width:100%;padding:8px;margin:6px 0;background:#142c2f;color:#f4eee3;border:1px solid #88d4c0" hidden></select>
+        <p id="bank-loan-quote" role="status" aria-live="polite" style="font-size:12px;margin:6px 0"></p>
         <label for="bank-loan-select">Loan to repay</label>
         <select id="bank-loan-select" style="display:block;width:100%;max-width:100%;padding:8px;margin:6px 0;background:#142c2f;color:#f4eee3;border:1px solid #88d4c0" aria-label="Loan to repay"></select>
-        <p id="bank-loan-policy" style="font-size:12px">Local loans: 25% per played day on remaining principal. No offline interest. Sample total debt limit: $5,000.</p>
+        <p id="bank-loan-policy" style="font-size:12px"></p>
         <div style="display:flex;gap:6px">
           <button data-act="borrow" style="flex:1">BORROW AMOUNT</button>
           <button data-act="repay" style="flex:1">REPAY SELECTED LOAN</button>
@@ -126,8 +136,56 @@ function buildUI() {
     to: root.querySelector('#bank-to'),
     link: root.querySelector('#bank-link'),
     msg: root.querySelector('#bank-msg'),
+    purpose: root.querySelector('#bank-loan-purpose'),
+    bridgeMissionLabel: root.querySelector('#bank-bridge-label'),
+    bridgeMission: root.querySelector('#bank-bridge-mission'),
+    quote: root.querySelector('#bank-loan-quote'),
+    borrow: root.querySelector('[data-act="borrow"]'),
   };
+  const changed=()=>{pendingBorrowQuote=null;if(world_)updateBorrowQuote(world_);};
+  ui.amt.addEventListener('input',changed);
+  ui.purpose.addEventListener('change',changed);
+  ui.bridgeMission.addEventListener('change',changed);
   return ui;
+}
+
+function syncBridgeMissions(world){
+  const now=performance.now();
+  if(now-bridgeMissionOptionsAt>=250){bridgeMissionOptions=borrowableMissions(world);bridgeMissionOptionsAt=now;}
+  const options=bridgeMissionOptions,signature=options.map(m=>m.id+'\u0000'+m.title).join('\u0001');
+  if(signature!==missionOptionsSignature){
+    const selected=ui.bridgeMission.value;
+    ui.bridgeMission.replaceChildren();
+    for(const mission of options){const option=document.createElement('option');option.value=mission.id;option.textContent=mission.id+' · '+mission.title;ui.bridgeMission.append(option);}
+    missionOptionsSignature=signature;
+    if(options.some(m=>m.id===selected))ui.bridgeMission.value=selected;
+    else if(options.length)ui.bridgeMission.value=options[0].id;
+  }
+  return options;
+}
+
+function updateBorrowQuote(world){
+  if(!ui)return;
+  const kind=ui.purpose.value==='bridge'?'bridge':'general';
+  const missions=syncBridgeMissions(world),missionId=kind==='bridge'?ui.bridgeMission.value:null;
+  ui.bridgeMission.hidden=ui.bridgeMissionLabel.hidden=kind!=='bridge';
+  const amountCents=Math.round(Number(ui.amt.value)*100),online=api.isOnline()&&api.isLinked();
+  try{
+    if(online)throw Error('Game loans are available in local banking only.');
+    const quote=quoteLocalBorrow(world,amountCents,{kind,missionId});
+    if(pendingBorrowQuote&&pendingBorrowQuote.fingerprint!==quote.fingerprint)pendingBorrowQuote=null;
+    const rate=(quote.rateBps/100).toLocaleString(undefined,{maximumFractionDigits:2});
+    const daily=(quote.dailyInterestCents/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    const missionText=kind==='bridge'?`Advance for ${quote.missionId} · ${quote.missionTitle}. `:'';
+    ui.quote.textContent=`${missionText}Borrow $${(amountCents/100).toLocaleString()} into your bank. Current rate: ${rate}% per active game day (about 24 active minutes); about $${daily} interest per day while principal remains. No offline interest. This prototype has no fixed term or total-cost cap; repay sooner to limit charges.`;
+    ui.borrow.disabled=false;
+    ui.borrow.textContent=pendingBorrowQuote?`CONFIRM $${(amountCents/100).toLocaleString()}`:'REVIEW LOAN';
+  }catch(error){
+    pendingBorrowQuote=null;
+    const reason=error.message||'Loan quote unavailable.';
+    ui.quote.textContent=kind==='bridge'&&!missions.length?'No unlocked story mission is available for an advance. ':''+reason;
+    ui.borrow.disabled=true;ui.borrow.textContent='REVIEW LOAN';
+  }
 }
 
 function renderLinkRow() {
@@ -172,12 +230,14 @@ function refresh(world) {
   selector.replaceChildren();
   const loans=bk.loanError?[]:bk.loanState.loans.filter(l=>l.principalCents+l.interestCents>0);
   loans.forEach((loan,i)=>{const option=document.createElement('option');option.value=loan.id;
-    option.textContent=(loan.kind==='vehicle'?loan.vehicleName:'General loan '+(i+1))+' - $'+((loan.principalCents+loan.interestCents)/100).toFixed(2)+' outstanding';selector.append(option);});
+    option.textContent=(loan.kind==='vehicle'?loan.vehicleName:loan.kind==='bridge'?'Mission advance · '+(loan.missionTitle||loan.missionId):'General loan '+(i+1))+' - $'+((loan.principalCents+loan.interestCents)/100).toFixed(2)+' outstanding';selector.append(option);});
   if(loans.some(l=>l.id===selected))selector.value=selected;
   if(!loans.length){const option=document.createElement('option');option.textContent='No outstanding loans';option.value='';selector.append(option);}
   selector.disabled=on||!!bk.loanError||!loans.length;
   const capacity=creditCapacity(world);
-  ui.root.querySelector('#bank-loan-policy').textContent=loanPolicyText(world)+' Available credit: $'+(capacity.availableCents/100).toLocaleString()+'. Next interest day in '+Math.ceil((economyPolicy(world).daySeconds-(bk.loanSeconds%economyPolicy(world).daySeconds))/60)+' active minutes.';
+  const policy=economyPolicy(world);
+  ui.root.querySelector('#bank-loan-policy').textContent=loanPolicyText(world)+' Available credit: $'+(capacity.availableCents/100).toLocaleString()+'. Mission advances: up to $'+(policy.bridgeCapCents/100).toLocaleString()+', one per unlocked story. Next interest day in '+Math.ceil((policy.daySeconds-(bk.loanSeconds%policy.daySeconds))/60)+' active minutes.';
+  updateBorrowQuote(world);
   renderLinkRow();
 }
 
@@ -224,7 +284,16 @@ async function handleClick(world, e) {
       if (online) return say('Loans are available in local banking only.');
       const cents = Math.round(Number(ui.amt.value) * 100);
       if (!Number.isSafeInteger(cents) || cents <= 0) return say('Enter a positive amount.');
-      if (act === 'borrow') borrowLocal(world, cents);
+      if (act === 'borrow') {
+        const kind=ui.purpose.value==='bridge'?'bridge':'general';
+        const missionId=kind==='bridge'?ui.bridgeMission.value:null;
+        const quote=quoteLocalBorrow(world,cents,{kind,missionId});
+        if(!pendingBorrowQuote||pendingBorrowQuote.fingerprint!==quote.fingerprint){
+          pendingBorrowQuote=quote;updateBorrowQuote(world);say('Review the amount, rate and repayment warning, then confirm the loan.');return;
+        }
+        pendingBorrowQuote=null;
+        borrowLocal(world,cents,{kind,missionId});
+      }
       else repayLocal(world, cents, ui.root.querySelector('#bank-loan-select').value || null);
       refresh(world);
       say(act === 'borrow' ? `Borrowed $${(cents/100).toFixed(2)} into your bank balance.` : `Repaid $${(cents/100).toFixed(2)} from your bank balance.`);

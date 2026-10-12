@@ -1,9 +1,13 @@
 import { runtime } from './runtime.js';
-import { createSaveStorage, parseSave } from './saveStorage.js';
+import { createSaveStorage, parseSave, parseSavePackage, SAVE_PACKAGE_FORMAT, MAX_SAVE_PACKAGE_BYTES } from './saveStorage.js';
 
 const { live: LIVE_KEY, slot: SLOT_KEY, active: ACTIVE_KEY, name: NAME_KEY } = runtime.saveKeys;
 export const SLOT_COUNT = 3;
-const store = createSaveStorage(localStorage, runtime.saveKeys, runtime.profile.id);
+const store = createSaveStorage(localStorage, runtime.saveKeys, runtime.profile.id, {
+  mapVersion:runtime.profile.mapVersion,
+  coreVersion:runtime.profile.coreVersion,
+  contentIds:runtime.profile.vehicles.map(v=>v.id),
+});
 let bootSnapshot = {}, bootError = null, booted = false, releaseLock;
 const lsGet = k => localStorage.getItem(k);
 const lsSet = (k,v) => store.setMetadata(k,v);
@@ -49,8 +53,14 @@ export function slotSummary(i) {
   }catch{return {empty:false,corrupt:true};}
 }
 export function previewSaveImport(text) {
-  const data=parseSave(text),warnings=[]; const sourceEdition=data._save?.edition || 'legacy';
+  const parsed=parseSavePackage(text),data=parsed.data,warnings=[]; const sourceEdition=data._save?.edition || 'legacy';
   if(sourceEdition!==runtime.profile.id)warnings.push('Create a '+runtime.profile.id+' copy of this '+sourceEdition+' save. The original is preserved.');
+  const sourceContentIds=Array.isArray(data._save?.contentIds)?data._save.contentIds:[];
+  const localContentIds=new Set(runtime.profile.vehicles.map(v=>v.id));
+  const unavailable=sourceContentIds.filter(id=>!localContentIds.has(id));
+  if(unavailable.length)warnings.push('This edition lacks saved content: '+unavailable.slice(0,5).join(', ')+(unavailable.length>5?' and '+(unavailable.length-5)+' more':'')+'. The imported copy will use documented fallbacks; the original is kept with save exports.');
+  if(data._save?.mapVersion&&data._save.mapVersion!==runtime.profile.mapVersion)warnings.push('The save was created for map version '+data._save.mapVersion+'. World positions may use current-edition fallbacks; the source copy is preserved.');
+  if(data._save?.coreVersion&&data._save.coreVersion!==runtime.profile.coreVersion)warnings.push('The save came from core '+data._save.coreVersion+' and will be stamped for '+runtime.profile.coreVersion+'.');
   const descriptors=[data.starterSedan,data.garageVehicle,...(data.lockup||[]),...(data.vehicleInventory||[]).map(r=>r?.descriptor)].filter(Boolean);
   for(const d of descriptors)if(d.modelId && !runtime.vehicle(d.modelId)) {
     warnings.push('Unavailable model '+d.modelId+' will use the starter vehicle appearance. Ownership, fuel, damage and loan records are retained.');
@@ -59,17 +69,25 @@ export function previewSaveImport(text) {
   const presets=runtime.profile.graphics.resolutionHeights || [720,900,1080];
   if(data.settings?.renderHeight && !presets.includes(data.settings.renderHeight)) { data.settings.renderHeight=presets[0];warnings.push('Render resolution reset to a supported preset.'); }
   delete data._save;
-  return {data,warnings:[...new Set(warnings)],summary:'Cash $'+(data.money||0)+' · Bank $'+(data.bank||0)+' · Missions '+(data.missions||0)};
+  return {data,source:parsed.source,warnings:[...new Set(warnings)],summary:'Cash $'+(data.money||0)+' · Bank $'+(data.bank||0)+' · Missions '+(data.missions||0)};
 }
 export function confirmSaveImport(text) { const p=previewSaveImport(text);return confirm(p.summary+'\n'+p.warnings.join('\n')+'\nReplace the selected slot? A recovery copy will be kept.'); }
-export function importIntoSlot(i,text) { const p=previewSaveImport(text);store.replace(i,p.data,{source:text});if(i===activeSlot())location.reload(); }
-export function copySlot(from,to) {validSlot(from);validSlot(to);if(from===to)return;const raw=store.readSlot(from);if(!raw)throw Error('Source slot is empty.');store.replace(to,parseSave(raw,{allowEmpty:true}),{source:raw});if(to===activeSlot())location.reload();}
+export function importIntoSlot(i,text) { const p=previewSaveImport(text);store.replace(i,p.data,{source:p.source});if(i===activeSlot())location.reload(); }
+export function copySlot(from,to) {validSlot(from);validSlot(to);if(from===to)return;const raw=store.readSlot(from);if(!raw)throw Error('Source slot is empty.');store.replace(to,parseSave(raw,{allowEmpty:true}),{source:store.importSource(from)||raw});if(to===activeSlot())location.reload();}
 export function deleteSlot(i) { store.replace(i,{}); if(i===activeSlot())location.reload(); }
 export function recoverSlot(i) { store.recover(i);if(i===activeSlot())location.reload(); }
 export function hasRecovery(i) { validSlot(i);return !!lsGet(store.backup(i)); }
+export function buildSlotExport(i) {
+  const raw=store.readSlot(i)||'{}';
+  const save=parseSave(raw,{allowEmpty:true}),source=store.importSource(i);
+  const bundle={format:SAVE_PACKAGE_FORMAT,save,...(source?{migrationSource:source}:{})};
+  const text=JSON.stringify(bundle);
+  if(text.length>MAX_SAVE_PACKAGE_BYTES)throw Error('This save and its preserved source are too large to export together.');
+  return text;
+}
 export function exportSlot(i) {
-  const raw=store.readSlot(i)||'{}',a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([raw],{type:'application/json'}));a.download='open-city-slot-'+(i+1)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  const text=buildSlotExport(i),a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));a.download='open-city-slot-'+(i+1)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
 }
 export function slotBlob(i) { const raw=store.readSlot(i);return raw?parseSave(raw,{allowEmpty:true}):null; }
 export function writeSlotBlob(i,obj,cloudRevision=0) { const raw=JSON.stringify(obj);store.replace(i,parseSave(raw),{source:raw,cloudRevision}); }

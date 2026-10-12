@@ -332,11 +332,9 @@ const world = {
   scene,
   city,
   player,
-  // Crowd/traffic counts scale with the graphics setting. Each pedestrian is
-  // an articulated rig (~15 meshes); 100 of them was a big slice of the
-  // per-frame scene-graph walk. Low graphics thins the city a lot.
-  peds: spawnPeds(scene, city, gfxTier === 'low' ? 34 : 64),
-  traffic: spawnTraffic(scene, city, gfxTier === 'low' ? 16 : 24),
+  // Tier caps include CPU simulation load as well as render quality.
+  peds: spawnPeds(scene, city, gfx.pedCap, gfxTier === 'low' ? player.pos : null),
+  traffic: spawnTraffic(scene, city, gfx.trafficCap),
   parked: spawnParked(scene, gfxTier === 'low' ? 22 : 34),
   cops: [],
   helis: [],
@@ -938,6 +936,7 @@ campaignService=initCampaign(world,save,{
     scene.remove(car.mesh);for(const list of [world.parked,world.traffic,world.cops]){const i=list?.indexOf(car);if(i>=0)list.splice(i,1);}
   },
 });
+world.campaignService=campaignService;
 if(campaignService.status().active)campaignService.requestVehicle();
 const campaignCast=createCampaignCast(world);world.campaignCast=campaignCast;
 const storyPresentation=createCampaignPresentation(world,{camera,resumePointer:()=>{if(!isTouch&&gameState==='play')renderer.domElement.requestPointerLock?.()?.catch?.(()=>{});}});
@@ -3363,7 +3362,9 @@ function update(dt) {
   // player rig always updates; the crowd updates on 1/2 or 1/3 of frames.
   if (world.perf.detailTick(0)) {
     for (const ped of world.peds) {
-      if (ped.mesh.visible) updateCharacterDetail(ped.ch, player.pos, world.settings.lowGfx);
+      if (ped.mesh.visible && (gfxTier !== 'low' || world.activity.shouldAnimate(ped.mesh, ped.pos))) {
+        updateCharacterDetail(ped.ch, player.pos, world.settings.lowGfx);
+      }
     }
   }
   updateTraffic(world, dt);

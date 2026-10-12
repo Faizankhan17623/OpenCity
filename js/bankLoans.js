@@ -1,4 +1,4 @@
-import { economyPolicy, validateBorrowing, DEFAULT_ECONOMY_POLICY } from './economyPolicy.js';
+import { economyPolicy, validateBorrowing, borrowableMissions, DEFAULT_ECONOMY_POLICY } from './economyPolicy.js';
 import { newLoanLedger, validateLoanLedger, transitionLoanLedger } from './loanLedger.js';
 
 // Initial local-bank offering. Rate/cap remain explicit test-balancing values.
@@ -20,6 +20,21 @@ export function loanDebt(world) {
   if (world.bank.loanError) return 0;
   return world.bank.loanState.loans.reduce((n,l)=>n+l.principalCents+l.interestCents,0);
 }
+export function quoteLocalBorrow(world,amountCents,{kind='general',missionId=null}={}){
+  const capacity=validateBorrowing(world,amountCents,{kind,missionId});
+  const policy=capacity.policy;
+  const mission=kind==='bridge'?borrowableMissions(world).find(m=>m.id===missionId):null;
+  const ledger=world.bank.loanState;
+  const fingerprint=JSON.stringify([
+    amountCents,kind,missionId,world.bank.balance,ledger.day,ledger.balanceCents,
+    ledger.loans.map(l=>[l.id,l.principalCents,l.interestCents,l.kind,l.missionId]),
+    world.auctions?.lots?.map(l=>[l.id,l.escrow?.creditCents||0])||[],
+    policy.principalCapCents,policy.bridgeCapCents,policy.maxLoans,policy.maxBridgeLoans,policy.rateBps,
+  ]);
+  return Object.freeze({amountCents,kind,missionId,missionTitle:mission?.title||null,
+    rateBps:policy.rateBps,dailyInterestCents:Math.round(amountCents*policy.rateBps/10000),
+    availableCents:capacity.availableCents,fingerprint});
+}
 function commit(world, command, seconds = world.bank.loanSeconds, receipt = null, attributes = null) {
   const bk = world.bank;
   if (bk.loanError) throw new Error(bk.loanError);
@@ -36,17 +51,19 @@ function commit(world, command, seconds = world.bank.loanSeconds, receipt = null
   }
 }
 export function borrowLocal(world, amountCents, {kind='general',missionId=null}={}) {
-  validateBorrowing(world,amountCents,{kind,missionId});
-  const id=crypto.randomUUID(),p=economyPolicy(world);
-  const receipt={id,label:kind==='bridge'?'Mission advance: '+missionId:'Local bank loan',amount:amountCents/100,account:'bank',credit:true,time:Date.now(),balanceBefore:world.bank.balance,balanceAfter:world.bank.balance+amountCents/100};
-  commit(world,{id,type:'borrow',loanId:id,amountCents,rateBps:p.rateBps},world.bank.loanSeconds,receipt,{kind,missionId,originalPrincipalCents:amountCents});
+  const quote=quoteLocalBorrow(world,amountCents,{kind,missionId});
+  const id=crypto.randomUUID();
+  const label=kind==='bridge'?'Mission advance: '+quote.missionTitle:'Local bank loan';
+  const receipt={id,label,amount:amountCents/100,account:'bank',credit:true,time:Date.now(),balanceBefore:world.bank.balance,balanceAfter:world.bank.balance+amountCents/100};
+  commit(world,{id,type:'borrow',loanId:id,amountCents,rateBps:quote.rateBps},world.bank.loanSeconds,receipt,
+    {kind,missionId,missionTitle:quote.missionTitle,originalPrincipalCents:amountCents});
   return id;
 }
 export function repayLocal(world, amountCents, loanId = null) {
   const loan = world.bank.loanState.loans.find(l=>(!loanId || l.id===loanId) && l.principalCents+l.interestCents>0);
   if (!loan) throw new Error('No outstanding loan.');
   const id=crypto.randomUUID();
-  const receipt={id,label:'Loan repayment: '+(loan.vehicleName||loan.missionId||'General loan'),amount:amountCents/100,
+  const receipt={id,label:'Loan repayment: '+(loan.vehicleName||loan.missionTitle||loan.missionId||'General loan'),amount:amountCents/100,
     account:'bank',credit:false,vehicleId:loan.vehicleId,time:Date.now(),balanceBefore:world.bank.balance,
     balanceAfter:world.bank.balance-amountCents/100,details:{loanId:loan.id}};
   commit(world,{id,type:'repay',loanId:loan.id,amountCents},world.bank.loanSeconds,receipt);

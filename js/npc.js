@@ -43,7 +43,7 @@ function movePed(world,p,direction,distance){
 
 // ---------------- Pedestrians ----------------
 
-export function spawnPeds(scene, city, count) {
+export function spawnPeds(scene, city, count, focus = null) {
   const peds = [];
   for (let i = 0; i < count; i++) {
     const ch = createCharacter(randomOutfit());
@@ -60,23 +60,51 @@ export function spawnPeds(scene, city, count) {
       target: 0,
       cw: Math.random() < 0.5 ? 1 : -1,
     };
-    placePedOnBlock(p, city);
+    placePedOnBlock(p, city, focus);
     peds.push(p);
   }
   return peds;
 }
 
-function placePedOnBlock(p, city) {
-  const rect = city.pedRects[(Math.random() * city.pedRects.length) | 0];
+function placePedOnBlock(p, city, focus = null) {
+  let rect;
+  if (focus && city.pedRects.length) {
+    // Pick a nearby sidewalk block so a small low-tier crowd is still present
+    // around the player instead of being diluted across the full 776m city.
+    const nearby = city.pedRects.filter(r => {
+      const x = Math.max(r.x0, Math.min(r.x1, focus.x));
+      const z = Math.max(r.z0, Math.min(r.z1, focus.z));
+      return (x - focus.x) ** 2 + (z - focus.z) ** 2 < 32 ** 2;
+    });
+    const rects = nearby.length ? nearby : city.pedRects;
+    rect = rects[(Math.random() * rects.length) | 0];
+  } else {
+    rect = city.pedRects[(Math.random() * city.pedRects.length) | 0];
+  }
   p.corners = rectCorners(rect);
-  p.target = (Math.random() * 4) | 0;
+  if (focus) {
+    let best = Infinity, edge = 0, along = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = p.corners[i], b = p.corners[(i + 1) % 4];
+      const dx = b.x - a.x, dz = b.z - a.z;
+      const lenSq = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((focus.x - a.x) * dx + (focus.z - a.z) * dz) / lenSq));
+      const x = a.x + dx * t, z = a.z + dz * t;
+      const distSq = (x - focus.x) ** 2 + (z - focus.z) ** 2;
+      if (distSq < best) { best = distSq; edge = i; along = t; }
+    }
+    p.target = edge;
+    p.pos.set(
+      p.corners[edge].x + (p.corners[(edge + 1) % 4].x - p.corners[edge].x) * Math.max(0, Math.min(1, along + (Math.random() - .5) * .3)),
+      0,
+      p.corners[edge].z + (p.corners[(edge + 1) % 4].z - p.corners[edge].z) * Math.max(0, Math.min(1, along + (Math.random() - .5) * .3))
+    );
+  } else {
+    p.target = (Math.random() * 4) | 0;
+  }
   const a = p.corners[p.target];
   const b = p.corners[(p.target + 1) % 4];
-  p.pos.set(
-    a.x + (b.x - a.x) * Math.random(),
-    0,
-    a.z + (b.z - a.z) * Math.random()
-  );
+  if (!focus) p.pos.set(a.x + (b.x - a.x) * Math.random(), 0, a.z + (b.z - a.z) * Math.random());
 }
 
 // Beyond this range a pedestrian just slides along its sidewalk loop with no
@@ -84,21 +112,37 @@ function placePedOnBlock(p, city) {
 // pixels tall and the saved work (a ~21-mesh matrix cascade + resolveCircle
 // over 480 colliders, times every distant ped) is most of the crowd cost.
 const PED_ANIM_RANGE = 55;
-const PED_ANIM_RANGE_LOW = 34;
 const PED_HIDE_RANGE = 115;
 
 export function updatePeds(world, dt) {
   const { peds, player, city } = world;
   const pcar = player.inCar;
   const focus = pcar ? pcar.pos : (player.inHeli ? player.inHeli.pos : player.pos);
-  const animRange = world.settings?.lowGfx ? PED_ANIM_RANGE_LOW : PED_ANIM_RANGE;
+  const pedCap = world.activity?.pedCap ?? Infinity;
+  const animRange = world.activity?.pedAnimationRadius ?? (world.settings?.lowGfx ? 26 : PED_ANIM_RANGE);
 
   // fewer people out at night
   const night = world.clock >= 22 || world.clock < 6;
 
+  let ambientIndex = 0;
   for (const p of peds) {
-    if (world.activity && !world.activity.active(p)) continue;
+    if (ambientIndex++ >= pedCap) {
+      p.sleeping = true;
+      if (world.activity) world.activity.visible(p.mesh, false);
+      else p.mesh.visible = false;
+      continue;
+    }
     const distSq = (p.pos.x - focus.x) ** 2 + (p.pos.z - focus.z) ** 2;
+    if (world.activity && !world.activity.active(p)) {
+      if (world.settings?.lowGfx && !p.dead && !(p.webT > 0) && distSq > (world.activity.radius + 30) ** 2) {
+        placePedOnBlock(p, city, focus);
+        p.fleeing = false;
+        p.wasAnimated = false;
+        p.mesh.rotation.z = 0;
+        p.mesh.position.y = 0;
+      }
+      continue;
+    }
     const far = distSq > animRange * animRange || (world.activity && !world.activity.shouldAnimate(p.mesh,p.pos));
     const hidden = !world.activity && distSq > PED_HIDE_RANGE * PED_HIDE_RANGE;
     if (p.mesh.visible === hidden) p.mesh.visible = !hidden;
@@ -124,7 +168,7 @@ export function updatePeds(world, dt) {
         if (p.webWrap) p.webWrap.visible = false;
         p.mesh.rotation.z = 0;
         p.mesh.position.y = 0;
-        placePedOnBlock(p, city);
+        placePedOnBlock(p, city, world.settings?.lowGfx ? focus : null);
       }
       continue;
     }
@@ -238,6 +282,7 @@ export function spawnTraffic(scene, city, count) {
     const heading = Math.atan2(fx, fz);
     const v = makeVehicle(scene, x, z, heading, randomCarColor());
     v.ai = { fx, fz, speed: 0, cruise: 8 + Math.random() * 5 };
+    v.ambientTraffic = true;
     traffic.push(v);
   }
   return traffic;
@@ -283,8 +328,16 @@ export function updateTraffic(world, dt) {
 
   const focus = pcar ? pcar.pos : (player.inHeli ? player.inHeli.pos : player.pos);
   const AVOID_RANGE_SQ = 120 * 120; // beyond this, cars just cruise their lane
+  const trafficCap = world.activity?.trafficCap ?? Infinity;
+  let ambientIndex = 0;
 
   for (const t of traffic) {
+    if (t.ambientTraffic && ambientIndex++ >= trafficCap) {
+      t.sleeping = true;
+      if (world.activity) world.activity.visible(t.mesh, false);
+      else t.mesh.visible = false;
+      continue;
+    }
     if (world.activity && !world.activity.active(t)) continue;
     if (t.dead || !t.ai) continue;
     if (t.webT > 0) { // webbed to the road

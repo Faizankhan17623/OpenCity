@@ -1,6 +1,8 @@
 export const runtimeProfile = {
   "contractVersion": 1,
   "id": "basic",
+  "mapVersion": 1,
+  "coreVersion": "0.3.10-local",
   "save": {
     "live": "opencity.basic.save.v2",
     "active": "opencity.basic.active",

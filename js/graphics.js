@@ -36,7 +36,11 @@ const TIER_SPEC = {
     dpr: 1,
     shadowMap: 1536,
     shadowDistance: 110,
+    // Keep a tighter simulation/render bubble on integrated GPUs.
     activeRadius: 50,
+    pedCap: 14,
+    trafficCap: 8,
+    pedAnimationRadius: 26,
     animationInterval: .1,
     gtao: false,
     smaa: false,
@@ -49,6 +53,9 @@ const TIER_SPEC = {
     shadowMap: 2048,
     shadowDistance: isTouch ? 150 : 200,
     activeRadius: 50,
+    pedCap: 34,
+    trafficCap: 16,
+    pedAnimationRadius: 42,
     animationInterval: .05,
     gtao: false,
     smaa: true,
@@ -60,7 +67,10 @@ const TIER_SPEC = {
     dpr: Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 2),
     shadowMap: 3072,
     shadowDistance: 300,
-    activeRadius: 50,
+    activeRadius: 65,
+    pedCap: 64,
+    trafficCap: 24,
+    pedAnimationRadius: 55,
     animationInterval: 1 / 30,
     gtao: false, // opt-in via settings.ao (see createPostChain)
     smaa: true,
@@ -123,6 +133,7 @@ export function activeRadius(settings, tier) {
 // actors; visibility and animation can still sleep without stopping objectives.
 export function createEntityActivity(world, camera, tier) {
   const hidden = new WeakMap(), statics = [], frustum = new THREE.Frustum();
+  const spec = tierSpec(tier);
   const matrix = new THREE.Matrix4(), sphere = new THREE.Sphere(), center = new THREE.Vector3();
   let radius = activeRadius(world.settings, tier), radiusSq = radius * radius;
   const focus = () => world.player.inCar?.pos || world.player.inHeli?.pos || world.player.inBoat?.pos || world.player.inPlane?.pos || world.player.pos;
@@ -170,7 +181,8 @@ export function createEntityActivity(world, camera, tier) {
     world.scene.fog.far = Math.min(world.scene.fog.far, far);
     world.scene.fog.near = Math.min(world.scene.fog.near, world.scene.fog.far * .55);
   }
-  return {active,inRange,shouldAnimate,update,fog,visible,get radius(){return radius;},animationInterval:tierSpec(tier).animationInterval,
+  return {active,inRange,shouldAnimate,update,fog,visible,get radius(){return radius;},
+    pedCap:spec.pedCap,trafficCap:spec.trafficCap,pedAnimationRadius:spec.pedAnimationRadius,animationInterval:spec.animationInterval,
     registerStatic(roots) {for(const root of roots){const bounds=new THREE.Box3().setFromObject(root);if(!bounds.isEmpty())statics.push({root,bounds});}},
   };
 }

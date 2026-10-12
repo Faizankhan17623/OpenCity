@@ -1,6 +1,13 @@
 // Fictional local-game economy. Edition values are injected, never entitlements.
 export const DEFAULT_ECONOMY_POLICY=Object.freeze({principalCapCents:1_000_000,maxLoans:1,bridgeCapCents:100_000,maxBridgeLoans:1,rateBps:2500,daySeconds:1440});
 export function economyPolicy(world){return {...DEFAULT_ECONOMY_POLICY,...world.economyPolicy};}
+export function borrowableMissions(world){
+  let missions;
+  try{missions=world.campaignService?.list?.();}catch{return [];}
+  return Array.isArray(missions)?missions.filter(m=>m?.available===true&&!m.completed&&typeof m.id==='string'&&typeof m.title==='string')
+    .sort((a,b)=>Number(b.active)-Number(a.active)||a.id.localeCompare(b.id))
+    .map(m=>({id:m.id,title:m.title,active:!!m.active})):[];
+}
 export function creditCapacity(world,{ignoreAuction=false}={}){
   const policy=economyPolicy(world),loans=world.bank?.loanState?.loans||[];
   const active=loans.filter(l=>l.principalCents+l.interestCents>0);
@@ -16,7 +23,8 @@ export function validateBorrowing(world,amountCents,{kind='general',missionId=nu
   const c=creditCapacity(world,{ignoreAuction}),p=c.policy;
   if(amountCents>c.availableCents)throw Error('Not enough available credit within this edition’s principal limit.');
   if(kind==='bridge'){
-    if(!missionId||typeof missionId!=='string')throw Error('Choose an active mission for this advance.');
+    if(!missionId||typeof missionId!=='string')throw Error('Choose an unlocked story mission for this advance.');
+    if(!borrowableMissions(world).some(m=>m.id===missionId))throw Error('Choose a currently unlocked story mission for this advance.');
     if(amountCents>p.bridgeCapCents||c.bridges>=p.maxBridgeLoans)throw Error('Mission advance limit reached. A supplied work vehicle remains available.');
     if((world.bank.loanState.loans||[]).some(l=>l.missionId===missionId))throw Error('This mission has already received its advance.');
   }else if(c.loans>=p.maxLoans)throw Error('Repay an existing loan before taking another.');

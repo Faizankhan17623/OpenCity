@@ -2,13 +2,19 @@
 // are compatibility copies and never determine transaction success.
 export const SAVE_SCHEMA = 3;
 export const MAX_SAVE_BYTES = 2_000_000;
+export const SAVE_PACKAGE_FORMAT = 'open-city-save-package-v1';
+export const MAX_SAVE_PACKAGE_BYTES = MAX_SAVE_BYTES * 2 + 8192;
 
 export function parseSave(text, { allowEmpty = false } = {}) {
   if (typeof text !== 'string' || text.length > MAX_SAVE_BYTES) throw Error('Save file is too large.');
   const value = JSON.parse(text);
   if (!value || Array.isArray(value) || typeof value !== 'object') throw Error('Choose an Open City save object.');
   if (!allowEmpty && !['money', 'missions', 'vehicleInventory', 'xp', 'bank'].some(k => Object.hasOwn(value, k))) throw Error('This file does not contain Open City progress.');
+  if (value._save !== undefined && (!value._save || Array.isArray(value._save) || typeof value._save !== 'object')) throw Error('Invalid save metadata.');
   if (value._save?.schema > SAVE_SCHEMA) throw Error('This save needs a newer game version.');
+  if (value._save?.mapVersion !== undefined && (!Number.isSafeInteger(value._save.mapVersion) || value._save.mapVersion < 1)) throw Error('Invalid save map version.');
+  if (value._save?.coreVersion !== undefined && typeof value._save.coreVersion !== 'string') throw Error('Invalid save core version.');
+  if (value._save?.contentIds !== undefined && (!Array.isArray(value._save.contentIds) || !value._save.contentIds.every(id => typeof id === 'string' && id.length > 0))) throw Error('Invalid installed content list.');
   for (const key of ['money', 'bank', 'xp', 'missions']) {
     if (value[key] !== undefined && (!Number.isFinite(value[key]) || value[key] < 0)) throw Error(`Invalid ${key} in save.`);
   }
@@ -21,7 +27,19 @@ export function parseSave(text, { allowEmpty = false } = {}) {
   return value;
 }
 
-export function createSaveStorage(storage, keys, edition) {
+export function parseSavePackage(text, { allowEmpty = false } = {}) {
+  if (typeof text !== 'string' || text.length > MAX_SAVE_PACKAGE_BYTES) throw Error('Save package is too large.');
+  let root;
+  try { root = JSON.parse(text); } catch { throw Error('Choose a valid Open City save file.'); }
+  if (root?.format !== SAVE_PACKAGE_FORMAT) return { data: parseSave(text, { allowEmpty }), source: text };
+  const data = parseSave(JSON.stringify(root.save), { allowEmpty });
+  let source = typeof root.migrationSource === 'string' ? root.migrationSource : JSON.stringify(root.save);
+  if (source.length > MAX_SAVE_BYTES) throw Error('Preserved source save is too large.');
+  parseSave(source, { allowEmpty: true });
+  return { data, source };
+}
+
+export function createSaveStorage(storage, keys, edition, metadata = {}) {
   let writable = false, loadedSlot = null, expected = null, invalidated = false, suspended = null;
   const validSlot = i => { if (!Number.isInteger(i) || i < 0 || i > 2) throw Error('Invalid save slot.'); };
   const canonical = i => keys.slot(i) + '.v3';
@@ -41,6 +59,9 @@ export function createSaveStorage(storage, keys, edition) {
   function stamp(value, slot, prior, cloudRevision, cloudEpoch) {
     return JSON.stringify({ ...value, _save: { schema: SAVE_SCHEMA, edition, slot,
       revision: (prior?._save?.revision || 0) + 1, savedAt: Date.now(),
+      mapVersion: metadata.mapVersion ?? prior?._save?.mapVersion ?? 1,
+      coreVersion: metadata.coreVersion ?? prior?._save?.coreVersion ?? 'unknown',
+      contentIds: metadata.contentIds ?? prior?._save?.contentIds ?? [],
       cloudRevision: cloudRevision ?? prior?._save?.cloudRevision ?? 0, cloudEpoch: cloudEpoch ?? prior?._save?.cloudEpoch ?? 0 } });
   }
   function replace(i, value, { source = null, cloudRevision, newCloudEpoch = false } = {}) {
@@ -80,6 +101,7 @@ export function createSaveStorage(storage, keys, edition) {
       return (useLive ? live : null) ?? get(keys.slot(i)) ?? '{}';
     },
     readSlot,
+    importSource(i) { validSlot(i); return get(keys.slot(i) + '.import-source'); },
     commit(value) { return replace(loadedSlot, value); },
     replace(i, value, options) {
       const raw = replace(i, value, {cloudRevision:0,...options,newCloudEpoch:true});
