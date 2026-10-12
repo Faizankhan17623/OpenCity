@@ -220,6 +220,7 @@
     "js/police.js",
     "js/prestige.js",
     "js/prison.js",
+    "js/properties.js",
     "js/propraid.js",
     "js/pursuitNavigation.js",
     "js/races.js",

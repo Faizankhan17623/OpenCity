@@ -172,6 +172,7 @@ import { initBossrush, updateBossrush, endBossrush } from './bossrush.js';
 import { initPerks, updatePerks } from './perks.js';
 import { initExplorer, updateExplorer } from './explorer.js';
 import { initArmor, updateArmor } from './armor.js';
+import { initProperties, updateProperties, propertiesMidnight, propertiesSave } from './properties.js';
 import { initFishing, updateFishing } from './fishing.js';
 import { initNightclub, updateNightclub } from './nightclub.js';
 import { initSkateboard, updateSkateboard } from './skateboard.js';
@@ -551,6 +552,7 @@ initBossrush(scene, world, save);
 initPerks(scene, world, save);
 initExplorer(world, save);
 initArmor(scene, world, save);
+initProperties(scene, world, save);
 initScars(scene, world);
 initCloudSave(world);
 initCityNews(world);
@@ -852,6 +854,7 @@ function saveGame() {
       cartOwned: world.streetfood?.owned,
       safehouses: [...(world.safehouses?.owned || [])],
       safehouseRentDay: world.safehouses?.rentDay,
+      properties: propertiesSave(world),
       streetRaces: world.streetRaceWins,
       bhuntDay: world.bhunt?.caughtDay,
       ...rideHailSave(world),
@@ -1664,6 +1667,7 @@ function updateOnFoot(dt) {
   else if (world.chessHint) setHint(world.chessHint);
   else if (world.perkHint) setHint(world.perkHint);
   else if (world.armorHint) setHint(world.armorHint);
+  else if (world.propertyHint) setHint(world.propertyHint);
   else if (world.icetruckHint) setHint(world.icetruckHint);
   else if (world.strangerHint) setHint(world.strangerHint);
   else setHint(null);
@@ -3240,6 +3244,7 @@ function update(dt) {
     }
   }
   if (world.bankUiOpen) { updateBanking(world, dt, keys, pressed); return; }
+  if (world.properties?.open) { updateProperties(world, dt, pressed); updateCamera(dt); updateHUD(world); return; }
   world.time += dt;
   city.district?.update(player.pos, world.settings.lowGfx);
   resetArticulation(player.ch);
@@ -3527,6 +3532,7 @@ function update(dt) {
   updatePerks(world, dt, pressed);
   updateExplorer(world, dt);
   updateArmor(world, dt, pressed);
+  updateProperties(world, dt, pressed);
   updateScars(dt);
   updateCityNews(dt);
   updateNpcMemory(dt);
@@ -3582,6 +3588,7 @@ function update(dt) {
   // midnight rolls the daily challenge over — with fireworks over the city
   if (world.clock < prevClock) {
     newDay(world);
+    propertiesMidnight(world);
     world.fwT = 4;
     showNews('midnight fireworks light up the skyline');
   }
