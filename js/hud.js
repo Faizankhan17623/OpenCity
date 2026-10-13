@@ -163,6 +163,18 @@ export function updateHUD(world) {
   const mm = Math.floor((world.clock % 1) * 60);
   els.clock.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 
+  // weather chip — a small condition readout tucked under the clock
+  if (world.weatherLabel) {
+    if (!els.weather) {
+      const el = document.createElement('div');
+      el.id = 'weather';
+      el.style.cssText = 'font:600 12px/1 system-ui;color:#bfe0ea;text-shadow:0 1px 3px #000;opacity:.9;margin-top:3px;letter-spacing:.03em';
+      els.clock.parentElement?.appendChild(el);
+      els.weather = el;
+    }
+    if (els.weather.textContent !== world.weatherLabel) els.weather.textContent = world.weatherLabel;
+  }
+
   for (let i = 0; i < 5; i++) {
     els.stars[i].classList.toggle('lit', i < world.wanted);
   }

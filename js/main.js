@@ -3271,6 +3271,23 @@ function update(dt) {
     sky.uniforms.sunHaze.value *= 1 - r * 0.7;
     sky.stars.material.opacity *= 1 - r;
   }
+  // overcast (cloudy/storm) dims the light without rain streaks
+  if (wx.cloud > 0.01) {
+    const c = wx.cloud;
+    sun.intensity *= 1 - c * 0.45;
+    hemi.intensity *= 1 - c * 0.15;
+    sky.uniforms.topColor.value.multiplyScalar(1 - c * 0.22);
+  }
+  // fog rolls a thick haze in and pulls the view distance right down
+  if (wx.fog > 0.01) {
+    const f = wx.fog;
+    scene.fog.near *= 1 - f * 0.7;
+    scene.fog.far *= 1 - f * 0.68;
+    sky.uniforms.horizonColor.value.multiplyScalar(1 - f * 0.25);
+    sky.stars.material.opacity *= 1 - f * 0.8;
+  }
+  world.weatherFog = wx.fog;
+  world.weatherLabel = wx.label; // HUD reads the current condition
   if (wx.flash > 0.01) {
     hemi.intensity += wx.flash * 1.8;
     sun.intensity += wx.flash * 0.8;
