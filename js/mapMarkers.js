@@ -22,7 +22,7 @@ export function collectMapMarkers(world){
  for(const pk of world.pickups||[])add(pk.pos,'owned',pk.type,'activities');
  const m=world.mission;if(m)add(m.active?m.objectivePos:m.markerPos,'mission',m.active?'Objective':'Job','objectives');
  const stage=world.campaignService?.currentStage();if(stage)add(stage.position,'mission',stage.label,'objectives');
- for(const[key,value]of Object.entries(world))if(key.endsWith('Blip')&&value)add(value,key==='fireBlip'||key==='disasterBlip'?'hazard':'mission',key.slice(0,-4)+' objective','objectives');
+ for(const[key,value]of Object.entries(world))if(key.endsWith('Blip')&&value)add(value,key==='fireBlip'||key==='disasterBlip'||key==='bombBlip'?'hazard':'mission',key.slice(0,-4)+' objective','objectives');
  add(world.waypoint,'waypoint','Waypoint','objectives');
  return sites;
 }

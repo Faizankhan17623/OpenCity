@@ -46,6 +46,28 @@ const RACES = [
 
 const PAYOUT = { gold: 1500, silver: 800, bronze: 400 };
 
+// Championship: medal all three car circuits to take the series title and a
+// one-time grand prize. Progress persists; the title is awarded once.
+const CHAMPIONSHIP_RACES = ['circuit', 'sprint', 'harbor'];
+const CHAMPIONSHIP_PRIZE = 10000;
+
+function checkChampionship(world) {
+  const champ = world.raceChamp ||= { won: false };
+  if (champ.won) return;
+  const done = CHAMPIONSHIP_RACES.filter((k) => world.raceBest[k] != null);
+  if (done.length < CHAMPIONSHIP_RACES.length) {
+    showNews(`city racing series — ${done.length}/${CHAMPIONSHIP_RACES.length} circuits cleared`);
+    return;
+  }
+  champ.won = true;
+  world.money += CHAMPIONSHIP_PRIZE;
+  addRep(world, 2000);
+  world.addXP?.(800);
+  sfxMissionPass();
+  showMissionMsg('SERIES CHAMPION!', `All circuits cleared — grand prize +$${CHAMPIONSHIP_PRIZE.toLocaleString()}`, '#ffd24a');
+  showNews('a new champion is crowned in the city racing series');
+}
+
 function ringMesh(color, r, h) {
   return new THREE.Mesh(
     new THREE.CylinderGeometry(r, r, h, 26, 1, true),
@@ -55,6 +77,7 @@ function ringMesh(color, r, h) {
 
 export function initRaces(scene, world, save) {
   world.raceBest = { ...(save.races || {}) };
+  world.raceChamp = { won: !!save.raceChamp };
   const defs = [];
   for (const def of RACES) {
     // Road race markers are flush paint-like rings, not waist-high barriers.
@@ -119,6 +142,7 @@ export function endRace(world, failed) {
     `${t.toFixed(1)}s · +$${pay}${world.raceBest[def.key] ? ` · best ${world.raceBest[def.key]}s` : ''}`,
     medal === 'gold' ? '#ffd24a' : '#7cf78c'
   );
+  if (medal) checkChampionship(world); // a medal clears the circuit toward the series
   world.onSave?.();
 }
 
