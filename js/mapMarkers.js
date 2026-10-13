@@ -15,6 +15,7 @@ export function collectMapMarkers(world){
  for(const s of world.mapSkulls||[])add(s.pos,'hazard','Challenge','activities');
  add(world.medic?.hospital,'shelter','Hospital');add(world.armsdealer?.pos,'contact','Arms dealer');
  for(const b of world.properties?.list||[])add(b.pos,'contact',b.owned?(b.pot>0?b.name+' — $'+b.pot:b.name):b.name+' (for sale)',b.owned?'services':'activities');
+ if(world.vault&&world.vault.state==='idle'&&world.vault.doneDay!==world.dailyDay)add(world.vault.pos,'hazard','The Vault','activities');
  for(const v of [...(world.cops||[]),...(world.policeHelis||[])])if(!v.dead)add(v.pos,'police','Police','police');
  for(const v of world.helis||[])if(!v.dead&&v!==world.player.inHeli)add(v.pos,'owned','Helicopter');
  for(const v of world.tanks||[])if(!v.dead)add(v.pos,'hazard','Tank','police');

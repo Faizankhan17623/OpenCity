@@ -51,6 +51,7 @@ import { initRaces, updateRaces, endRace } from './races.js';
 import { initWater, updateWater, physStepBoat, inWater, WATER_Y } from './water.js';
 import { initDog, updateDog } from './dog.js';
 import { initHeist, updateHeist, failHeist } from './heist.js';
+import { initVaultHeist, updateVaultHeist, vaultHeistSave } from './vaultheist.js';
 import { initTurfWar, updateTurfWar } from './turfwar.js';
 import { initBlackjack, openBlackjack } from './blackjack.js';
 import { initVigilante, updateVigilante, endVigilante } from './vigilante.js';
@@ -424,6 +425,7 @@ const racesState = initRaces(scene, world, save);
 const waterState = initWater(scene, world);
 initDog(scene, world, save);
 initHeist(scene, world, save);
+initVaultHeist(scene, world, save);
 initTurfWar(scene, world);
 initVigilante(world, save);
 initArmored(world);
@@ -805,6 +807,7 @@ function saveGame() {
       dailyDay: world.dailyDay, dailyDone: world.dailyDone,
       arenaBest: world.arena?.best, races: world.raceBest, mods: world.garageMods,
       dog: world.dog?.owned, heistDay: world.heist?.doneDay, vigBest: world.vig?.best,
+      ...vaultHeistSave(world),
       jet: world.jetpack?.owned, hoops: [...(world.hoops?.got || [])], crowned: world.crowned,
       lastStand: world.finale?.won, fable: world.fable?.found,
       lottoDay: world.lottery?.ticketDay, expDay: world.exportJob?.day, expIdx: world.exportJob?.idx,
@@ -1570,6 +1573,7 @@ function updateOnFoot(dt) {
   else if (world.zombieHint) setHint(world.zombieHint);
   else if (world.prisonHint) setHint(world.prisonHint);
   else if (world.heistHint) setHint(world.heistHint);
+  else if (world.vaultHint) setHint(world.vaultHint);
   else if (world.trainHint) setHint(world.trainHint);
   else if (world.cheistHint) setHint(world.cheistHint);
   else if (world.cardsHint) setHint(world.cardsHint);
@@ -3409,6 +3413,7 @@ function update(dt) {
   updateWater(waterState, world, dt);
   updateDog(world, dt, pressed);
   updateHeist(world, dt, keys, pressed);
+  updateVaultHeist(world, dt, keys, pressed);
   updateTurfWar(world, dt);
   updateVigilante(world, dt, pressed);
   updateArmored(world, dt);
@@ -3551,7 +3556,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||
