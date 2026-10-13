@@ -54,6 +54,8 @@ import { initHeist, updateHeist, failHeist } from './heist.js';
 import { initVaultHeist, updateVaultHeist, vaultHeistSave } from './vaultheist.js';
 import { initBombSquad, updateBombSquad, bombSquadSave } from './bombsquad.js';
 import { initAirTaxi, updateAirTaxi, airTaxiSave } from './airtaxi.js';
+import { initBusRoute, updateBusRoute, busRouteSave } from './busroute.js';
+import { initGarbage, updateGarbage, garbageSave } from './garbage.js';
 import { initTurfWar, updateTurfWar } from './turfwar.js';
 import { initBlackjack, openBlackjack } from './blackjack.js';
 import { initVigilante, updateVigilante, endVigilante } from './vigilante.js';
@@ -111,6 +113,7 @@ import { initTaxi, updateTaxi } from './taxi.js';
 import { initValet, updateValet } from './valet.js';
 import { initCarwash, updateCarwash } from './carwash.js';
 import { initBarber, updateBarber } from './barber.js';
+import { initTattoo, updateTattoo, tattooSave } from './tattoo.js';
 import { initArmsdealer, updateArmsdealer } from './armsdealer.js';
 import { initDruglab, updateDruglab, endDruglab } from './druglab.js';
 import { initVendors, updateVendors } from './vendors.js';
@@ -430,6 +433,8 @@ initHeist(scene, world, save);
 initVaultHeist(scene, world, save);
 initBombSquad(scene, world, save);
 initAirTaxi(scene, world, save);
+initBusRoute(scene, world, save);
+initGarbage(scene, world, save);
 initTurfWar(scene, world);
 initVigilante(world, save);
 initArmored(world);
@@ -493,6 +498,7 @@ initTaxi(world);
 initValet(scene, world);
 initCarwash(scene, world);
 initBarber(scene, world, save);
+initTattoo(scene, world, save);
 initArmsdealer(scene, world);
 initDruglab(scene, world, save);
 initVendors(scene, world);
@@ -814,6 +820,9 @@ function saveGame() {
       ...vaultHeistSave(world),
       ...bombSquadSave(world),
       ...airTaxiSave(world),
+      ...busRouteSave(world),
+      ...garbageSave(world),
+      ...tattooSave(world),
       jet: world.jetpack?.owned, hoops: [...(world.hoops?.got || [])], crowned: world.crowned,
       lastStand: world.finale?.won, fable: world.fable?.found,
       lottoDay: world.lottery?.ticketDay, expDay: world.exportJob?.day, expIdx: world.exportJob?.idx,
@@ -1582,6 +1591,8 @@ function updateOnFoot(dt) {
   else if (world.vaultHint) setHint(world.vaultHint);
   else if (world.bombHint) setHint(world.bombHint);
   else if (world.airHint) setHint(world.airHint);
+  else if (world.busHint) setHint(world.busHint);
+  else if (world.garbageHint) setHint(world.garbageHint);
   else if (world.trainHint) setHint(world.trainHint);
   else if (world.cheistHint) setHint(world.cheistHint);
   else if (world.cardsHint) setHint(world.cardsHint);
@@ -1631,6 +1642,7 @@ function updateOnFoot(dt) {
   else if (world.valetHint) setHint(world.valetHint);
   else if (world.carwashHint) setHint(world.carwashHint);
   else if (world.barberHint) setHint(world.barberHint);
+  else if (world.tattooHint) setHint(world.tattooHint);
   else if (world.armsHint) setHint(world.armsHint);
   else if (world.druglabHint) setHint(world.druglabHint);
   else if (world.gymHint) setHint(world.gymHint);
@@ -3441,6 +3453,8 @@ function update(dt) {
   updateVaultHeist(world, dt, keys, pressed);
   updateBombSquad(world, dt, keys, pressed);
   updateAirTaxi(world, dt, keys, pressed);
+  updateBusRoute(world, dt, keys, pressed);
+  updateGarbage(world, dt, keys, pressed);
   updateTurfWar(world, dt);
   updateVigilante(world, dt, pressed);
   updateArmored(world, dt);
@@ -3500,6 +3514,7 @@ function update(dt) {
   updateValet(world, dt, pressed);
   updateCarwash(world, dt, keys);
   updateBarber(world, dt, pressed);
+  updateTattoo(world, dt, pressed);
   updateArmsdealer(world, dt, pressed, ammo);
   updateDruglab(world, dt);
   updateVendors(world, dt, pressed);
@@ -3583,7 +3598,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||
