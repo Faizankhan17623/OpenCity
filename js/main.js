@@ -55,6 +55,10 @@ import { initVaultHeist, updateVaultHeist, vaultHeistSave } from './vaultheist.j
 import { initBombSquad, updateBombSquad, bombSquadSave } from './bombsquad.js';
 import { initAirTaxi, updateAirTaxi, airTaxiSave } from './airtaxi.js';
 import { initBusRoute, updateBusRoute, busRouteSave } from './busroute.js';
+import { initTowTruck, updateTowTruck, towTruckSave } from './towtruck.js';
+import { initGokart, updateGokart, gokartSave } from './gokart.js';
+import { initLockpick, updateLockpick, lockpickSave } from './lockpick.js';
+import { initKaraoke, updateKaraoke, karaokeSave } from './karaoke.js';
 import { initGarbage, updateGarbage, garbageSave } from './garbage.js';
 import { initTurfWar, updateTurfWar } from './turfwar.js';
 import { initBlackjack, openBlackjack } from './blackjack.js';
@@ -434,6 +438,10 @@ initVaultHeist(scene, world, save);
 initBombSquad(scene, world, save);
 initAirTaxi(scene, world, save);
 initBusRoute(scene, world, save);
+initTowTruck(scene, world, save);
+initGokart(scene, world, save);
+initLockpick(scene, world, save);
+initKaraoke(scene, world, save);
 initGarbage(scene, world, save);
 initTurfWar(scene, world);
 initVigilante(world, save);
@@ -821,6 +829,10 @@ function saveGame() {
       ...bombSquadSave(world),
       ...airTaxiSave(world),
       ...busRouteSave(world),
+      ...towTruckSave(world),
+      ...gokartSave(world),
+      ...lockpickSave(world),
+      ...karaokeSave(world),
       ...garbageSave(world),
       ...tattooSave(world),
       jet: world.jetpack?.owned, hoops: [...(world.hoops?.got || [])], crowned: world.crowned,
@@ -1592,6 +1604,10 @@ function updateOnFoot(dt) {
   else if (world.bombHint) setHint(world.bombHint);
   else if (world.airHint) setHint(world.airHint);
   else if (world.busHint) setHint(world.busHint);
+  else if (world.towHint) setHint(world.towHint);
+  else if (world.kartHint) setHint(world.kartHint);
+  else if (world.lockpickHint) setHint(world.lockpickHint);
+  else if (world.karaokeHint) setHint(world.karaokeHint);
   else if (world.garbageHint) setHint(world.garbageHint);
   else if (world.trainHint) setHint(world.trainHint);
   else if (world.cheistHint) setHint(world.cheistHint);
@@ -3454,6 +3470,10 @@ function update(dt) {
   updateBombSquad(world, dt, keys, pressed);
   updateAirTaxi(world, dt, keys, pressed);
   updateBusRoute(world, dt, keys, pressed);
+  updateTowTruck(world, dt, keys, pressed);
+  updateGokart(world, dt, keys, pressed);
+  updateLockpick(world, dt, keys, pressed);
+  updateKaraoke(world, dt, keys, pressed);
   updateGarbage(world, dt, keys, pressed);
   updateTurfWar(world, dt);
   updateVigilante(world, dt, pressed);
@@ -3598,7 +3618,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||
