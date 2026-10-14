@@ -63,6 +63,10 @@ import { initMailRun, updateMailRun, mailRunSave } from './mailrun.js';
 import { initTreasure, updateTreasure, treasureSave } from './treasure.js';
 import { initBarGames, updateBarGames, barGamesSave } from './bargames.js';
 import { initBowling, updateBowling, bowlingSave } from './bowling.js';
+import { initArchery, updateArchery, archerySave } from './archery.js';
+import { initPinball, updatePinball, pinballSave } from './pinball.js';
+import { initBungee, updateBungee, bungeeSave } from './bungee.js';
+import { initCarnival, updateCarnival, carnivalSave } from './carnival.js';
 import { initGarbage, updateGarbage, garbageSave } from './garbage.js';
 import { initTurfWar, updateTurfWar } from './turfwar.js';
 import { initBlackjack, openBlackjack } from './blackjack.js';
@@ -450,6 +454,10 @@ initMailRun(scene, world, save);
 initTreasure(scene, world, save);
 initBarGames(scene, world, save);
 initBowling(scene, world, save);
+initArchery(scene, world, save);
+initPinball(scene, world, save);
+initBungee(scene, world, save);
+initCarnival(scene, world, save);
 initGarbage(scene, world, save);
 initTurfWar(scene, world);
 initVigilante(world, save);
@@ -845,6 +853,10 @@ function saveGame() {
       ...treasureSave(world),
       ...barGamesSave(world),
       ...bowlingSave(world),
+      ...archerySave(world),
+      ...pinballSave(world),
+      ...bungeeSave(world),
+      ...carnivalSave(world),
       ...garbageSave(world),
       ...tattooSave(world),
       jet: world.jetpack?.owned, hoops: [...(world.hoops?.got || [])], crowned: world.crowned,
@@ -1624,6 +1636,10 @@ function updateOnFoot(dt) {
   else if (world.treasureHint) setHint(world.treasureHint);
   else if (world.barHint) setHint(world.barHint);
   else if (world.bowlingHint) setHint(world.bowlingHint);
+  else if (world.archeryHint) setHint(world.archeryHint);
+  else if (world.pinballHint) setHint(world.pinballHint);
+  else if (world.bungeeHint) setHint(world.bungeeHint);
+  else if (world.carnivalHint) setHint(world.carnivalHint);
   else if (world.garbageHint) setHint(world.garbageHint);
   else if (world.trainHint) setHint(world.trainHint);
   else if (world.cheistHint) setHint(world.cheistHint);
@@ -3494,6 +3510,10 @@ function update(dt) {
   updateTreasure(world, dt, keys, pressed);
   updateBarGames(world, dt, keys, pressed);
   updateBowling(world, dt, keys, pressed);
+  updateArchery(world, dt, keys, pressed);
+  updatePinball(world, dt, keys, pressed);
+  updateBungee(world, dt, keys, pressed);
+  updateCarnival(world, dt, keys, pressed);
   updateGarbage(world, dt, keys, pressed);
   updateTurfWar(world, dt);
   updateVigilante(world, dt, pressed);
