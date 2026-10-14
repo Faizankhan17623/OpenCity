@@ -59,6 +59,10 @@ import { initTowTruck, updateTowTruck, towTruckSave } from './towtruck.js';
 import { initGokart, updateGokart, gokartSave } from './gokart.js';
 import { initLockpick, updateLockpick, lockpickSave } from './lockpick.js';
 import { initKaraoke, updateKaraoke, karaokeSave } from './karaoke.js';
+import { initMailRun, updateMailRun, mailRunSave } from './mailrun.js';
+import { initTreasure, updateTreasure, treasureSave } from './treasure.js';
+import { initBarGames, updateBarGames, barGamesSave } from './bargames.js';
+import { initBowling, updateBowling, bowlingSave } from './bowling.js';
 import { initGarbage, updateGarbage, garbageSave } from './garbage.js';
 import { initTurfWar, updateTurfWar } from './turfwar.js';
 import { initBlackjack, openBlackjack } from './blackjack.js';
@@ -442,6 +446,10 @@ initTowTruck(scene, world, save);
 initGokart(scene, world, save);
 initLockpick(scene, world, save);
 initKaraoke(scene, world, save);
+initMailRun(scene, world, save);
+initTreasure(scene, world, save);
+initBarGames(scene, world, save);
+initBowling(scene, world, save);
 initGarbage(scene, world, save);
 initTurfWar(scene, world);
 initVigilante(world, save);
@@ -833,6 +841,10 @@ function saveGame() {
       ...gokartSave(world),
       ...lockpickSave(world),
       ...karaokeSave(world),
+      ...mailRunSave(world),
+      ...treasureSave(world),
+      ...barGamesSave(world),
+      ...bowlingSave(world),
       ...garbageSave(world),
       ...tattooSave(world),
       jet: world.jetpack?.owned, hoops: [...(world.hoops?.got || [])], crowned: world.crowned,
@@ -1608,6 +1620,10 @@ function updateOnFoot(dt) {
   else if (world.kartHint) setHint(world.kartHint);
   else if (world.lockpickHint) setHint(world.lockpickHint);
   else if (world.karaokeHint) setHint(world.karaokeHint);
+  else if (world.mailHint) setHint(world.mailHint);
+  else if (world.treasureHint) setHint(world.treasureHint);
+  else if (world.barHint) setHint(world.barHint);
+  else if (world.bowlingHint) setHint(world.bowlingHint);
   else if (world.garbageHint) setHint(world.garbageHint);
   else if (world.trainHint) setHint(world.trainHint);
   else if (world.cheistHint) setHint(world.cheistHint);
@@ -3474,6 +3490,10 @@ function update(dt) {
   updateGokart(world, dt, keys, pressed);
   updateLockpick(world, dt, keys, pressed);
   updateKaraoke(world, dt, keys, pressed);
+  updateMailRun(world, dt, keys, pressed);
+  updateTreasure(world, dt, keys, pressed);
+  updateBarGames(world, dt, keys, pressed);
+  updateBowling(world, dt, keys, pressed);
   updateGarbage(world, dt, keys, pressed);
   updateTurfWar(world, dt);
   updateVigilante(world, dt, pressed);
@@ -3618,7 +3638,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||
