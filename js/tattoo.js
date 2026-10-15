@@ -88,6 +88,7 @@ export function updateTattoo(world, dt, pressed) {
   }
 
   const lines = DESIGNS.map((x, i) => `${i + 1}) ${x.name}`).join(' · ');
+  world.nearKiosk = true; // digits choose ink here, not switch weapons
   world.tattooHint = `TATTOO ($${COST}): ${lines} · <b>0</b> remove · <b>E</b> close`;
   if (pressed['Digit0']) {
     t.design = null;

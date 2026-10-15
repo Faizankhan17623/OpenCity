@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { placeStreetSite } from './site-layout.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
@@ -18,6 +19,7 @@ export function initBungee(scene, world, save) {
   // stand it near the shoreline, off the road grid
   let base = world.city.spawn.clone().add(new THREE.Vector3(60, 0, 44));
   if (pointBlocked(new THREE.Vector3(base.x, 1, base.z), world.city.colliders, 3)) base = world.city.spawn.clone().add(new THREE.Vector3(66, 0, 38));
+  placeStreetSite(world.city, base, 3, 'bungee');
 
   const mast = new THREE.Mesh(
     new THREE.CylinderGeometry(0.6, 1, TOP_Y, 8),
@@ -94,6 +96,7 @@ export function updateBungee(world, dt, keys, pressed) {
       player.pos.z = b.platform.z;
       player.inCar = null; player.inHeli = null;
       player.glide = false;
+      player.vy = 0; player.vel.x = 0; player.vel.z = 0;
       sfxPickup();
       showMissionMsg('BUNGEE!', 'Freeeee faaaall...', '#55e6ff');
     }
@@ -103,6 +106,10 @@ export function updateBungee(world, dt, keys, pressed) {
   // physics: gravity pulls down; the cord is a spring once past CORD_LEN, with
   // strong damping so it reliably comes to rest hanging below the catch point.
   b.rideT = (b.rideT || 0) + dt;
+  // the cord owns the player for the ride: cancel the on-foot step's gravity
+  // and walking so it can't drag them into the ground or off the line
+  player.vy = 0; player.vel.x = 0; player.vel.z = 0;
+  player.pos.x = b.platform.x; player.pos.z = b.platform.z;
   const extend = b.anchorY - player.pos.y; // how far below the anchor
   b.vy -= 26 * dt;                          // gravity
   if (extend > CORD_LEN) {
@@ -130,6 +137,7 @@ export function updateBungee(world, dt, keys, pressed) {
     const nerve = Math.max(0, 1 - clearance / 12);         // within ~12m of the ground = full nerve
     const pay = Math.round(300 + nerve * 1200);
     world.player.pos.y = GROUND + 0.2;
+    world.player.vy = 0;
     b.cord.visible = false;
     b.state = 'idle';
     b.jumps++;

@@ -11,6 +11,7 @@ import { addRep } from './economy.js';
 // Three balls, then the score pays tickets (cash) and a saved high score.
 
 const BALLS = 3;
+const STAKE = 20;
 const W = 180, H = 300;   // playfield px
 const GRAV = 220;         // px/s^2
 
@@ -75,7 +76,10 @@ function launchBall(world) {
 
 function start(world) {
   const pb = world.pinball;
+  if (world.money < STAKE) { showToast('Not enough cash for a game'); return; }
+  world.money -= STAKE;
   pb.playing = true; pb.ballsLeft = BALLS; pb.score = 0;
+  pb.standX = world.player.pos.x; pb.standZ = world.player.pos.z;
   ensureHud(world).el.style.display = 'block';
   launchBall(world);
   showMissionMsg('PINBALL', 'A left flipper · D right flipper — keep it alive!', '#b060ff');
@@ -104,7 +108,10 @@ export function updatePinball(world, dt, keys, pressed) {
   const d = Math.hypot(player.pos.x - pb.pos.x, player.pos.z - pb.pos.z);
 
   if (pb.playing) {
-    if (d > 4 || !onFoot) { finish(world); return; }
+    // W/S walks away; A/D are the flippers, so undo the on-foot strafe
+    if (d > 4 || !onFoot || keys['KeyW'] || keys['KeyS']) { finish(world); return; }
+    player.pos.x = pb.standX; player.pos.z = pb.standZ;
+    player.vel.x = 0; player.vel.z = 0;
     const hud = ensureHud(world);
     const step = Math.min(dt, 0.05);
     // flipper visuals
@@ -124,6 +131,7 @@ export function updatePinball(world, dt, keys, pressed) {
         if (Math.hypot(pb.bx - b.x, pb.by - b.y) < 20) {
           const a = Math.atan2(pb.by - b.y, pb.bx - b.x);
           pb.vx = Math.cos(a) * 240; pb.vy = Math.sin(a) * 240;
+          pb.bx = b.x + Math.cos(a) * 21; pb.by = b.y + Math.sin(a) * 21; // out of reach: one hit per bounce
           pb.score += 150; sfxPickup();
         }
       }
@@ -147,12 +155,12 @@ export function updatePinball(world, dt, keys, pressed) {
       hud.ball.style.top = (pb.by - 7) + 'px';
     }
     hud.score.textContent = `SCORE ${pb.score}  ·  BALLS ${pb.ballsLeft}`;
-    world.pinballHint = `PINBALL — ${pb.ballsLeft} balls · A/D flippers`;
+    world.pinballHint = `PINBALL — ${pb.ballsLeft} balls · A/D flippers · W/S walk away`;
     return;
   }
 
   if (d > 3.2 || !onFoot) { if (pb.hud) pb.hud.el.style.display = 'none'; return; }
-  world.pinballHint = `PINBALL — press <b>E</b> to play${pb.high ? ` · best ${pb.high}` : ''}`;
+  world.pinballHint = `PINBALL — press <b>E</b> to play ($${STAKE})${pb.high ? ` · best ${pb.high}` : ''}`;
   if (pressed['KeyE']) start(world);
 }
 
