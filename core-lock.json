@@ -1,7 +1,7 @@
 {
-  "version": "0.3.25-local",
-  "sha256": "fff5f7b852f38f4f6381815f40e01729293fc7be35f8420011b636b1cb3cd644",
-  "source": "Basic main snapshot after adding a rooftop cat rescue job from a lost-pets board by spawn; main.js wiring identical across both editions; shared edition compatibility validated",
+  "version": "0.3.26-local",
+  "sha256": "5fc6e8fb75960f85ae5ead1ef639297e70fb58cbadd864f37d967223353c2a6d",
+  "source": "Basic main snapshot after moving the lifeguard tower, beach shack and buried finds off the outer ring road onto the sand strip by the seawall; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -129,7 +129,7 @@
     "js/landmarks.js": "508d31ab14fff26ed8a03a27466ad17037cca9f89919b220e4adfdf3bc472363",
     "js/lawyer.js": "732ea795f5df76917669bb6ca0a1ebd7939bb80e1834c63d81f320674611d0e5",
     "js/legend.js": "69bb0540ba030c3708cca07b5044caab3ffdde8cb0ebc283ec61338d55c1e328",
-    "js/lifeguard.js": "dc02fb71ca29176a1f4f15600fcf765f610a27f974a8c5a4a971eec49441f332",
+    "js/lifeguard.js": "864e4930a8b59378475289152562f6d93ab92181b88f5bb0370aa0a239b687ab",
     "js/loanLedger.js": "a1500ab29d391bc43e2b65c7560d192b291292e9c947e88eb0e0d6f012b59c42",
     "js/lockpick.js": "711bf374022e64bd211a84acb6bdd3277b6ba0c3cab8e7fc5c9e49213f38ea46",
     "js/lottery.js": "c73c0da6573bca070a4dc62ff7bda75f8258918235dd9a525f3d3f1c792b82a4",
@@ -212,7 +212,7 @@
     "js/towtruck.js": "65811ffdc3dcdd5eab754d91b4f268684ae4d49a0124614805963ddc82d045f2",
     "js/train.js": "14b42f53c4c0b1e78e75b44a57564e4982f1f45148b91b885a80e4bbeb2a9676",
     "js/trainjack.js": "bd41830d8219dde4a50b1b74fe55e15faf53f94ea14d1a7d7da2d70609f13e01",
-    "js/treasure.js": "ad20f3c76db09e7fc9cbe909b42a835f35503ee2c8631a948ade4204411344af",
+    "js/treasure.js": "3fdd14bd9fb4562984e6932e375ef1ab44b316e9a094da65e2e42031d957d65c",
     "js/trickpark.js": "7e4691f8034f11400a928d173eb978fbef562109213e2fa280b876ca4aee7874",
     "js/turfwar.js": "f9ec112bf31ad5e52ce9ef483f1a03096a83ce758a3e8fad77bd6a5b235703b5",
     "js/ufo.js": "1f0981a490ee9bde9b5c40e562109d095adf85192ecc4f067e5e703b1c165c91",

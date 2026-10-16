@@ -53,8 +53,10 @@ function makeSwimmer() {
 }
 
 export function initLifeguard(scene, world, save) {
-  let tower = new THREE.Vector3(WATER_X0 - 7, 0, -30);
-  if (pointBlocked(new THREE.Vector3(tower.x, 1, tower.z), world.city.colliders, 2)) tower = new THREE.Vector3(WATER_X0 - 7, 0, -50);
+  // on the strip of sand between the outer ring road (it ends 6m short of the
+  // shoreline) and the seawall, so traffic never drives through the tower
+  let tower = new THREE.Vector3(WATER_X0 - 3, 0, -30);
+  if (pointBlocked(new THREE.Vector3(tower.x, 1, tower.z), world.city.colliders, 1)) tower = new THREE.Vector3(WATER_X0 - 3, 0, -50);
 
   // the tower: four legs, a deck and a red roof you can spot from the water
   const wood = new THREE.MeshStandardMaterial({ color: 0xd8c8a0, roughness: 0.85 });
@@ -75,7 +77,7 @@ export function initLifeguard(scene, world, save) {
   scene.add(roof);
 
   // the shore beacon you tow swimmers back to, just at the waterline
-  const shore = new THREE.Vector3(WATER_X0 - 2, 0, tower.z);
+  const shore = new THREE.Vector3(WATER_X0 - 1, 0, tower.z + 6);
   const shoreBeam = beamMesh(0x7cf78c);
   shoreBeam.position.set(shore.x, 20, shore.z);
   scene.add(shoreBeam);
