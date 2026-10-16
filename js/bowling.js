@@ -81,9 +81,10 @@ function finish(world) {
   const pay = Math.round(b.score * 8);
   world.money += pay;
   addRep(world, Math.round(b.score / 2));
-  if (b.score > b.high) { b.high = b.score; showNews('a new top score goes up at the bowling alley'); }
+  const newBest = b.score > b.high;
+  if (newBest) { b.high = b.score; showNews('a new top score goes up at the bowling alley'); }
   (b.score >= 100 ? sfxMissionPass : sfxMissionFail)();
-  showMissionMsg('GAME OVER', `Score ${b.score} · +$${pay}${b.score > b.high ? '' : ` · best ${b.high}`}`, '#55e6ff');
+  showMissionMsg('GAME OVER', `Score ${b.score} · +$${pay}${newBest ? ' · NEW BEST!' : ` · best ${b.high}`}`, '#55e6ff');
   world.onSave?.();
 }
 

@@ -17,9 +17,13 @@ const DETECT_RANGE = 22;   // metres the meter reacts within
 
 function beachSpot(world) {
   // a strip of sand just inland of the seawall, within the shoreline span
-  const x = WATER_X0 - 4 - Math.random() * 20;
-  const z = (Math.random() * 2 - 1) * (WATER_Z - 20);
-  return new THREE.Vector3(x, 0, z);
+  // retry spots that land in a building on the last block row, or it can never be dug
+  for (let i = 0; i < 30; i++) {
+    const x = WATER_X0 - 4 - Math.random() * 20;
+    const z = (Math.random() * 2 - 1) * (WATER_Z - 20);
+    if (!pointBlocked(new THREE.Vector3(x, 1, z), world.city.colliders, DIG_RADIUS)) return new THREE.Vector3(x, 0, z);
+  }
+  return new THREE.Vector3(WATER_X0 - 6, 0, (Math.random() * 2 - 1) * 40);
 }
 
 export function initTreasure(scene, world, save) {

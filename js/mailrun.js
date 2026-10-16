@@ -117,6 +117,7 @@ export function updateMailRun(world, dt, keys, pressed) {
     const d = Math.hypot(focus.x - m.pos.x, focus.z - m.pos.z);
     if (d > 6 || m.cooldown > 0) return;
     world.mailHint = 'POST OFFICE — press <b>E</b> to load a mail round';
+    if (player.inCar) world.carActionE = true;
     if (pressed['KeyE']) {
       if (layRoute(world) < DROPS) { showToast('No clear route right now — try again shortly'); m.cooldown = 3; return; }
       m.on = true;

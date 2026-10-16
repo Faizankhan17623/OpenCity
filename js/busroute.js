@@ -94,12 +94,12 @@ function endRoute(world, finished) {
   b.cooldown = 4;
   if (finished) {
     b.runs++;
-    const pay = FARE_PER_STOP * STOPS + LOOP_BONUS;
+    const pay = LOOP_BONUS; // stop fares were already paid at each stop
     world.money += pay;
     addRep(world, 250);
     world.addXP?.(200);
     sfxMissionPass();
-    showMissionMsg('ROUTE COMPLETE', `Full loop driven — +$${pay.toLocaleString()}`, '#ffd24a');
+    showMissionMsg('ROUTE COMPLETE', `Full loop driven — +$${pay.toLocaleString()} bonus ($${(FARE_PER_STOP * STOPS + pay).toLocaleString()} total)`, '#ffd24a');
     showNews('the city line keeps the neighbourhood moving');
     world.onSave?.();
   }
@@ -121,6 +121,7 @@ export function updateBusRoute(world, dt, keys, pressed) {
     if (d > 6 || b.cooldown > 0) return;
     if (!inVehicle) { world.busHint = 'CITY LINE DEPOT — bring a vehicle to start a route'; return; }
     world.busHint = 'CITY LINE — press <b>E</b> to start the bus route';
+    world.carActionE = true;
     if (pressed['KeyE']) {
       b.stops = pickStops(world, b.pos);
       if (b.stops.length < STOPS) { showToast('No clear route right now — try again shortly'); b.cooldown = 3; return; }

@@ -5,13 +5,14 @@ import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
 import { addRep } from './economy.js';
 
-// KARAOKE BAR: grab the mic and hit the notes in time. Four lanes (D F J K);
+// KARAOKE BAR: grab the mic and hit the notes in time. Four lanes (1 2 3 4);
 // a note slides down each lane and you press its key as it crosses the line.
 // Hits build a combo and the crowd's mood; the final score pays tips and rep.
+// Lanes are the number keys: D/F/J/K would also strafe, punch and fire the jetpack.
 // A light, musical change of pace from street busking.
 
-const LANES = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];
-const LANE_LABEL = ['D', 'F', 'J', 'K'];
+const LANES = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
+const LANE_LABEL = ['1', '2', '3', '4'];
 const NOTE_COUNT = 24;
 const FALL = 2.0;         // seconds for a note to fall to the line
 const HIT_WINDOW = 0.18;  // seconds of leeway around the line
@@ -110,7 +111,7 @@ export function updateKaraoke(world, dt, keys, pressed) {
       k.playing = true; k.notes.length = 0; k.spawned = 0; k.spawnT = 0; k.t = 0;
       k.hits = 0; k.combo = 0; k.best = 0; k.score = 0;
       sfxPickup();
-      showMissionMsg('KARAOKE', 'Hit D F J K as the notes cross the line!', '#ff9ad8');
+      showMissionMsg('KARAOKE', 'Hit 1 2 3 4 as the notes cross the line!', '#ff9ad8');
     }
     return;
   }
@@ -118,6 +119,7 @@ export function updateKaraoke(world, dt, keys, pressed) {
   // walking away or driving off ends the set early
   if (!onFoot || Math.hypot(player.pos.x - k.pos.x, player.pos.z - k.pos.z) > 6) { finish(world); return; }
 
+  world.nearKiosk = true; // digits sing here, not switch weapons
   k.t += dt;
   k.spawnT -= dt;
   if (k.spawned < NOTE_COUNT && k.spawnT <= 0) { spawnNote(world); k.spawnT = SPAWN_GAP; }

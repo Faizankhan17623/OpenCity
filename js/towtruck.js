@@ -109,6 +109,7 @@ export function updateTowTruck(world, dt, keys, pressed) {
     if (d > 6 || t.cooldown > 0) return;
     if (!inVehicle) { world.towHint = 'CITY TOW YARD — bring a vehicle to start a tow'; return; }
     world.towHint = 'CITY TOW — press <b>E</b> to take a tow job';
+    world.carActionE = true;
     if (pressed['KeyE']) {
       t.target.copy(spawnTarget(world));
       t.wreck.position.set(t.target.x, 0, t.target.z);

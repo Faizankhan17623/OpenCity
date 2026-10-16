@@ -51,7 +51,7 @@ import { initRaces, updateRaces, endRace } from './races.js';
 import { initWater, updateWater, physStepBoat, inWater, WATER_Y } from './water.js';
 import { initDog, updateDog } from './dog.js';
 import { initHeist, updateHeist, failHeist } from './heist.js';
-import { initVaultHeist, updateVaultHeist, vaultHeistSave } from './vaultheist.js';
+import { initVaultHeist, updateVaultHeist, vaultHeistSave, failVaultHeist } from './vaultheist.js';
 import { initBombSquad, updateBombSquad, bombSquadSave } from './bombsquad.js';
 import { initAirTaxi, updateAirTaxi, airTaxiSave } from './airtaxi.js';
 import { initBusRoute, updateBusRoute, busRouteSave } from './busroute.js';
@@ -2533,7 +2533,8 @@ function updateDriving(dt) {
 
   // E refuels before exiting when parked at a pump.
   const atPump = canRefuel(world, car) && !keys.ShiftLeft && !keys.ShiftRight;
-  if (pressed['KeyE'] && !atPump) {
+  // ...and when a roadside activity offered E last frame (start a route, a tow, a kart race)
+  if (pressed['KeyE'] && !atPump && !world.carActionE) {
     if (car.vel.length() < 5) beginExitCar();
     else showToast('Slow down to exit!');
   }
@@ -3028,6 +3029,7 @@ function triggerOver(text, color) {
   endArena(world, true);
   endRace(world, true);
   failHeist(world);
+  failVaultHeist(world);
   endVigilante(world, text === 'WASTED' ? 'You got wasted' : 'You got busted');
   endFightClub(world, 'knocked out cold');
   endFinale(world);
@@ -3486,6 +3488,7 @@ function update(dt) {
   updatePickups(dt);
   if (mission && mission.type === 'mech') mission._boom = explodeRocket;
   updateMissions(world, dt);
+  world.carActionE = false; // activities below set it when they offer E to a driver
   updateShops(shopsState, world, dt, keys, pressed);
   updateGang(world, dt);
   updateArmy(world, dt, armyHooks);

@@ -81,12 +81,12 @@ function endRun(world, finished) {
   clearBins(world);
   if (finished) {
     g.runs++;
-    const pay = PER_BIN * BINS + SWEEP_BONUS;
+    const pay = SWEEP_BONUS; // each bin was already paid as it was emptied
     world.money += pay;
     addRep(world, 220);
     world.addXP?.(180);
     sfxMissionPass();
-    showMissionMsg('ROUTE CLEARED', `Every bin emptied — +$${pay.toLocaleString()}`, '#ffd24a');
+    showMissionMsg('ROUTE CLEARED', `Every bin emptied — +$${pay.toLocaleString()} bonus ($${(PER_BIN * BINS + pay).toLocaleString()} total)`, '#ffd24a');
     showNews('sanitation keeps the streets clean another day');
     world.onSave?.();
   } else {
@@ -110,6 +110,7 @@ export function updateGarbage(world, dt, keys, pressed) {
     if (d > 6 || g.cooldown > 0) return;
     if (!inVehicle) { world.garbageHint = 'SANITATION YARD — bring a vehicle to start a run'; return; }
     world.garbageHint = 'SANITATION — press <b>E</b> to start the garbage run';
+    world.carActionE = true;
     if (pressed['KeyE']) {
       if (layRoute(world) < BINS) { showToast('No clear route right now — try again shortly'); g.cooldown = 3; return; }
       g.on = true;
@@ -132,7 +133,7 @@ export function updateGarbage(world, dt, keys, pressed) {
     b.mesh.rotation.y += dt;
     const d = Math.hypot(focus.x - b.pos.x, focus.z - b.pos.z);
     if (d < nd) { nd = d; nearest = b; }
-    if (d < BIN_RADIUS) {
+    if (d < BIN_RADIUS && inVehicle) {
       b.done = true;
       b.mesh.visible = false;
       g.left--;
