@@ -436,7 +436,7 @@ export function updatePickpocket(world, dt, keys, pressed) {
   const inSight = looking && level && d < SEE_R && facing >= SEE_CONE;
   const war = 1 + Math.min(P.score, 8) * 0.15;
   if (inSight && (P.lift > 0.05 || keys['KeyE'] || d < CLOSE_R)) P.suspicion = 100;
-  else if (inSight) P.suspicion += (45 + 90 * (1 - d / SEE_R)) * war * dt;
+  else if (inSight) P.suspicion += (30 + 70 * (1 - d / SEE_R)) * war * dt;
   else if (P.mode === 'walk' && level && d < 1.2 && !behind) P.suspicion += 30 * war * dt; // bumping into him
   else P.suspicion = Math.max(0, P.suspicion - 12 * dt);
   if (P.suspicion >= 100) { caught(world); return; }
