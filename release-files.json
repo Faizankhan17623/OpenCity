@@ -98,6 +98,7 @@
     "js/barber.js",
     "js/bargames.js",
     "js/basejump.js",
+    "js/billboard.js",
     "js/blackjack.js",
     "js/blackout.js",
     "js/boatrace.js",
