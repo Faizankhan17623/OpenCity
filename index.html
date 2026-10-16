@@ -231,6 +231,15 @@
     box-shadow: 0 0 30px rgba(85,230,255,.35); transition: transform .12s, filter .12s;
   }
   #playbtn:hover { transform: translateY(-2px); filter: brightness(1.12); }
+  #storybtn {
+    margin: 12px 0 0; pointer-events: auto; cursor: pointer;
+    font-size: 15px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase;
+    color: var(--cyan); background: rgba(85,230,255,.08);
+    border: 1px solid rgba(85,230,255,.55); padding: 10px 44px;
+    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    transition: transform .12s, background .12s;
+  }
+  #storybtn:hover { transform: translateY(-2px); background: rgba(85,230,255,.18); }
 
   #charpick { pointer-events: auto; margin-bottom: 4px; }
   #charpick .chartitle { color: var(--dim); font: 800 11px 'Consolas', monospace; letter-spacing: .3em; margin-bottom: 10px; }

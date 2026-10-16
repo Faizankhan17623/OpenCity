@@ -140,6 +140,11 @@ export function applyDayNight(hours, ctx) {
   sky.uniforms.sunDir.value.copy(_sunDir);
   sky.uniforms.sunHaze.value = 0.4 + (1 - s.glow) * 0.8;
   sky.dome.position.copy(camera.position);
+  // The view distance is capped per graphics tier (well under the dome's 860m
+  // radius), which clipped the whole sky and left it black. The shader only
+  // uses the view direction, so shrink the dome and stars to sit inside it.
+  sky.dome.scale.setScalar(Math.min(1, (camera.far * 0.9) / 860));
+  sky.stars.scale.setScalar(Math.min(1, (camera.far * 0.88) / 820));
   sky.stars.material.opacity = s.glow * 0.9;
   sky.stars.position.copy(camera.position);
 
