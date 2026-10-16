@@ -231,6 +231,15 @@
     box-shadow: 0 0 30px rgba(85,230,255,.35); transition: transform .12s, filter .12s;
   }
   #playbtn:hover { transform: translateY(-2px); filter: brightness(1.12); }
+  #storybtn {
+    margin: 12px 0 0; pointer-events: auto; cursor: pointer;
+    font-size: 15px; font-weight: 900; letter-spacing: 4px; text-transform: uppercase;
+    color: var(--cyan); background: rgba(85,230,255,.08);
+    border: 1px solid rgba(85,230,255,.55); padding: 10px 44px;
+    clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+    transition: transform .12s, background .12s;
+  }
+  #storybtn:hover { transform: translateY(-2px); background: rgba(85,230,255,.18); }
 
   #charpick { pointer-events: auto; margin-bottom: 4px; }
   #charpick .chartitle { color: var(--dim); font: 800 11px 'Consolas', monospace; letter-spacing: .3em; margin-bottom: 10px; }
@@ -341,7 +350,7 @@
 
   <div id="start">
     <h1>OPEN CITY</h1>
-    <div class="edition">▚ Final Edition</div>
+    <div class="edition">▚ Basic Edition</div>
     <div class="tag">Swing · Drive · Fly — a GTA-style open world in your browser</div>
 
     <div id="charpick">
@@ -395,6 +404,10 @@
       <div class="feat"><b>🔥 Persistent damage</b> Scorch marks, shattered glass and burnt-out wrecks stay on the street after a firefight until you leave the block.</div>
       <div class="feat"><b>📰 Reactive news</b> The city ticker reports what you actually just did — "3rd store hit this hour", "National Guard called in".</div>
       <div class="feat"><b>🧠 NPCs remember</b> Shoot near someone and they flee on sight next time; shake the cops next to a bystander and they'll tip you off later.</div>
+      <div class="feat"><b>🐈 Cat rescue</b> Take a job from the lost-pets board by spawn, web-swing up to the rooftop where a cat is stranded and bring it home before it bolts — faster pays more.</div>
+      <div class="feat"><b>🎆 Fireworks show</b> After dark, run the harbor barge from the console on the sand: hold E to charge each shell and let go so it bursts in its glowing ring — eight shells a night, tips by accuracy.</div>
+      <div class="feat"><b>⛴️ Water taxi</b> Take the helm of any boat and fares start waving from the seawall — pull in, let them aboard and run them along the coast; a quick crossing pays a bonus.</div>
+      <div class="feat"><b>🛟 Lifeguard rescues</b> Clock on at the tower by the seawall, swim or boat out to swimmers in trouble and tow them back to shore before they go under — three saves a shift.</div>
       <div class="feat"><b>🌊 The harbor</b> Open water past the east edge — speedboats, a jet-ski, swimming, and piers to dive off.</div>
       <div class="feat"><b>🏁 Free-roam races</b> Two street circuits, two harbor boat races and a rooftop swing trial — gold/silver/bronze medals and saved best times.</div>
       <div class="feat"><b>🏟️ The arena</b> Wave survival at the stadium: gangs, SWAT and drones, cash and rep per wave.</div>

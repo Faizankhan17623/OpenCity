@@ -54,7 +54,10 @@ const CHAMPIONSHIP_PRIZE = 10000;
 function checkChampionship(world) {
   const champ = world.raceChamp ||= { won: false };
   if (champ.won) return;
-  const done = CHAMPIONSHIP_RACES.filter((k) => world.raceBest[k] != null);
+  const done = CHAMPIONSHIP_RACES.filter((k) => {
+    const best = world.raceBest[k], def = RACES.find((r) => r.key === k);
+    return best != null && def && best <= def.bronze; // raceBest also records unmedalled finishes
+  });
   if (done.length < CHAMPIONSHIP_RACES.length) {
     showNews(`city racing series — ${done.length}/${CHAMPIONSHIP_RACES.length} circuits cleared`);
     return;

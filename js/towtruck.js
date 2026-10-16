@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxMissionPass, sfxPickup } from './sound.js';
@@ -34,12 +35,7 @@ export function initTowTruck(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 2)) pos = world.city.spawn.clone().add(new THREE.Vector3(30, 0, 18));
   placeStreetSite(world.city, pos, 2.8, 'tow-yard');
 
-  const booth = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 2.4, 2),
-    new THREE.MeshStandardMaterial({ color: 0x8a6a2f, roughness: 0.8 })
-  );
-  booth.position.copy(pos).setY(1.2);
-  scene.add(booth);
+  storefront(scene, world.city, pos, { name: 'CITY TOW', w: 2.8, d: 2.2, wall: 0x7a6440, accent: 0xe08a20, sign: { fg: '#ffb020', bg: '#231a0c', accent: '#ffb020' } });
 
   // the flagged car (a dull wreck) — shown while a job is live
   const wreck = new THREE.Group();
@@ -109,6 +105,7 @@ export function updateTowTruck(world, dt, keys, pressed) {
     if (d > 6 || t.cooldown > 0) return;
     if (!inVehicle) { world.towHint = 'CITY TOW YARD — bring a vehicle to start a tow'; return; }
     world.towHint = 'CITY TOW — press <b>E</b> to take a tow job';
+    world.carActionE = true;
     if (pressed['KeyE']) {
       t.target.copy(spawnTarget(world));
       t.wreck.position.set(t.target.x, 0, t.target.z);

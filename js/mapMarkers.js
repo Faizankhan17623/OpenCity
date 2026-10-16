@@ -1,6 +1,7 @@
 // Shared upright art and screen-space clustering for both maps.
+import { presentationArt } from './uiArt.js';
 const images=new Map();
-function markerImage(kind){if(kind==='nitro')kind='pump';if(!images.has(kind)){const image=new Image();image.src='/assets/ui/markers/marker-'+kind+'.svg';images.set(kind,image);}return images.get(kind);}
+function markerImage(kind){if(!presentationArt)return null;if(kind==='nitro')kind='pump';if(!images.has(kind)){const image=new Image();image.src='/assets/ui/markers/marker-'+kind+'.svg';images.set(kind,image);}return images.get(kind);}
 export function collectMapMarkers(world){
  const sites=[],add=(pos,kind,label,category='services')=>{if(pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.z))sites.push({pos,kind,label,category});};
  for(const m of world.bank?.machines||[])if(!m.dead)add(m.pos,'bank','Bank / ATM');
@@ -26,28 +27,55 @@ export function collectMapMarkers(world){
  add(world.waypoint,'waypoint','Waypoint','objectives');
  return sites;
 }
-export function layoutMapMarkers(sites,project,{width,height=width,size=18,margin=size/2+7}={}){
+export function layoutMapMarkers(sites,project,{width,height=width,size=18,margin=size/2+7,pinOffscreen=()=>true}={}){
  const points=sites.map(site=>{
   const[x,y]=project(site.pos.x,site.pos.z),dx=x-width/2,dy=y-height/2;
   const factor=Math.min(1,(width/2-margin)/Math.max(Math.abs(dx),1),(height/2-margin)/Math.max(Math.abs(dy),1));
   return {...site,x:width/2+dx*factor,y:height/2+dy*factor,edge:factor<1,angle:Math.atan2(dy,dx)};
- }).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y));
+ }).filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&(!p.edge||pinOffscreen(p)));
  const priority={mission:0,waypoint:1,nitro:2,contact:2,pump:4};
  points.sort((a,b)=>(priority[a.kind]??3)-(priority[b.kind]??3));
  const groups=[];
  for(const p of points){const group=groups.find(g=>g[0].edge===p.edge&&(!p.edge||Math.cos(g[0].angle-p.angle)>.92)&&Math.hypot(g[0].x-p.x,g[0].y-p.y)<30);if(group)group.push(p);else groups.push([p]);}
  return groups.flatMap(members=>members.length>=4?[{...members[0],members,count:members.length,badge:members.length>9?'9+':String(members.length),scale:members[0].edge?.7:1}]:members.map((p,i)=>({...p,members:[p],count:1,badge:'',crowded:i>0,scale:p.edge||i>0?.7:1})));
 }
-export function drawMapMarkers(ctx,world,project,{size=18,labels=false,width=ctx.canvas.width,height=ctx.canvas.height,filter=true,sites=collectMapMarkers(world)}={}){
+// Vector icons for editions without marker art: one readable shape per kind,
+// drawn at radius r around the origin. Unknown kinds fall back to a letter.
+function drawGlyph(ctx,kind,r,color){
+ ctx.fillStyle=color;ctx.strokeStyle=color;ctx.lineWidth=Math.max(1.4,r*.28);ctx.lineCap='round';ctx.lineJoin='round';
+ const poly=(pts)=>{ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*r,y*r):ctx.moveTo(x*r,y*r));ctx.closePath();};
+ switch(kind){
+  case 'bank':ctx.font='900 '+Math.round(r*2.1)+'px Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('$',0,r*.08);break;
+  case 'showroom':case 'owned':if(kind==='owned'){ // a key
+    ctx.beginPath();ctx.arc(-r*.45,0,r*.42,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(-r*.03,0);ctx.lineTo(r*.95,0);ctx.moveTo(r*.6,0);ctx.lineTo(r*.6,r*.38);ctx.moveTo(r*.88,0);ctx.lineTo(r*.88,r*.3);ctx.stroke();break;}
+   poly([[-1,.35],[-1,-.05],[-.55,-.1],[-.3,-.55],[.35,-.55],[.6,-.1],[1,-.05],[1,.35]]);ctx.fill(); // a car
+   ctx.fillStyle='#142c2f';for(const x of [-.55,.55]){ctx.beginPath();ctx.arc(x*r,.38*r,.24*r,0,Math.PI*2);ctx.fill();}break;
+  case 'garage':ctx.beginPath();ctx.moveTo(-r*.75,r*.75);ctx.lineTo(r*.25,-r*.25);ctx.stroke(); // a wrench
+   ctx.beginPath();ctx.arc(r*.45,-r*.45,r*.42,Math.PI*.25,Math.PI*1.95);ctx.stroke();break;
+  case 'pump':ctx.fillRect(-r*.75,-r*.85,r*1.05,r*1.7);ctx.fillStyle='#142c2f';ctx.fillRect(-r*.55,-r*.62,r*.65,r*.45); // a fuel pump
+   ctx.beginPath();ctx.moveTo(r*.3,-r*.35);ctx.lineTo(r*.75,-r*.35);ctx.lineTo(r*.75,r*.5);ctx.stroke();break;
+  case 'contact':ctx.beginPath();ctx.arc(0,-r*.42,r*.38,0,Math.PI*2);ctx.fill(); // a person
+   ctx.beginPath();ctx.ellipse(0,r*.62,r*.72,r*.48,0,Math.PI,0);ctx.fill();break;
+  case 'hazard':poly([[0,-1],[.95,.8],[-.95,.8]]);ctx.fill();ctx.fillStyle='#142c2f'; // a warning sign
+   ctx.fillRect(-r*.1,-r*.4,r*.2,r*.62);ctx.fillRect(-r*.1,r*.38,r*.2,r*.2);break;
+  case 'shelter':ctx.fillRect(-r*.28,-r*.85,r*.56,r*1.7);ctx.fillRect(-r*.85,-r*.28,r*1.7,r*.56);break; // a medical cross
+  case 'police':{const pts=[];for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,k=i%2?.45:1;pts.push([Math.cos(a)*k,Math.sin(a)*k]);}poly(pts);ctx.fill();break;} // a star
+  case 'mission':poly([[0,-1],[.8,0],[0,1],[-.8,0]]);ctx.fill();break; // a diamond
+  case 'waypoint':ctx.beginPath();ctx.arc(0,-r*.25,r*.6,Math.PI*.85,Math.PI*.15);ctx.lineTo(0,r);ctx.closePath();ctx.fill(); // a map pin
+   ctx.fillStyle='#142c2f';ctx.beginPath();ctx.arc(0,-r*.25,r*.24,0,Math.PI*2);ctx.fill();break;
+  default:ctx.font='bold '+Math.round(r*2)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(kind||'?')[0].toUpperCase(),0,0);
+ }
+}
+export function drawMapMarkers(ctx,world,project,{size=18,labels=false,width=ctx.canvas.width,height=ctx.canvas.height,filter=true,sites=collectMapMarkers(world),pinOffscreen}={}){
  const visible=filter?sites.filter(s=>s.category==='objectives'||world.settings?.['map'+s.category[0].toUpperCase()+s.category.slice(1)]!==false):sites;
- const layout=layoutMapMarkers(visible,project,{width,height,size});
+ const layout=layoutMapMarkers(visible,project,{width,height,size,...(pinOffscreen?{pinOffscreen}:{})});
  for(const p of layout){
   ctx.save();ctx.translate(p.x,p.y);const isNitro=p.kind==='nitro',markerSize=isNitro?Math.max(size*1.7,24):size*(p.scale||1),color=p.kind==='police'?'#669bff':p.kind==='hazard'?'#f08060':'#88d4c0';
   ctx.fillStyle=isNitro?'#34220b':'#142c2f';ctx.beginPath();ctx.arc(0,0,isNitro?Math.max(size*.78,14):size*.64,0,Math.PI*2);ctx.fill();
   if(isNitro){ctx.strokeStyle='#ffd365';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(0,0,Math.max(size*.78,14),0,Math.PI*2);ctx.stroke();}
   const image=markerImage(p.kind);
-  if(image.complete&&image.naturalWidth)ctx.drawImage(image,-markerSize/2,-markerSize/2,markerSize,markerSize);
-  else{ctx.fillStyle=color;ctx.font='bold '+Math.round(size*.7)+'px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.kind[0].toUpperCase(),0,0);}
+  if(image&&image.complete&&image.naturalWidth)ctx.drawImage(image,-markerSize/2,-markerSize/2,markerSize,markerSize);
+  else if(!isNitro)drawGlyph(ctx,p.kind,size*(p.scale||1)*.34,color);
   if(isNitro){ctx.font='900 '+Math.round(markerSize*.9)+'px Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='#1c160b';ctx.fillStyle='#ffe08a';ctx.strokeText('N',0,1);ctx.fillText('N',0,1);}
   if(p.edge){ctx.save();ctx.rotate(p.angle);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(size*.91,0);ctx.lineTo(size*.52,-4);ctx.lineTo(size*.52,4);ctx.closePath();ctx.fill();ctx.restore();}
   if(p.count>1){ctx.fillStyle='#f4eee3';ctx.beginPath();ctx.arc(size*.4,-size*.4,9,0,Math.PI*2);ctx.fill();ctx.fillStyle='#142c2f';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.badge,size*.4,-size*.4);}

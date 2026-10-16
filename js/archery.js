@@ -81,9 +81,10 @@ function finish(world) {
   const pay = Math.round(a.score * 6);
   world.money += pay;
   addRep(world, Math.round(a.score / 3));
-  if (a.score > a.high) { a.high = a.score; showNews('a sharp eye tops the archery scoreboard'); }
+  const newBest = a.score > a.high;
+  if (newBest) { a.high = a.score; showNews('a sharp eye tops the archery scoreboard'); }
   (a.score >= ARROWS * 6 ? sfxMissionPass : sfxMissionFail)();
-  showMissionMsg('ROUND DONE', `Score ${a.score} · +$${pay}${a.score > a.high ? '' : ` · best ${a.high}`}`, '#cc6633');
+  showMissionMsg('ROUND DONE', `Score ${a.score} · +$${pay}${newBest ? ' · NEW BEST!' : ` · best ${a.high}`}`, '#cc6633');
   world.onSave?.();
 }
 

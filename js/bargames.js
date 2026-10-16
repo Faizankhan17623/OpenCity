@@ -143,6 +143,7 @@ export function updateBarGames(world, dt, keys, pressed) {
     if (pressed['KeyE']) b.open = true;
     return;
   }
+  world.nearKiosk = true; // digits pick a game here, not switch weapons
   world.barHint = `BAR GAMES ($${STAKE} stake): <b>1</b> Darts · <b>2</b> Pool · <b>E</b> close`;
   if (pressed['Digit1']) { b.open = false; startGame(world, 'darts'); }
   else if (pressed['Digit2']) { b.open = false; startGame(world, 'pool'); }

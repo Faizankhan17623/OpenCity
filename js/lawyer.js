@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg } from './hud.js';
 import { sfxMissionPass } from './sound.js';
@@ -17,15 +18,7 @@ export function initLawyer(scene, world, save) {
   if (pointBlocked(probe, world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(-44, 0, 2));
   placeStreetSite(world.city, pos, 2.5, 'lawyer');
 
-  const office = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 2.6, 2),
-    new THREE.MeshStandardMaterial({ color: 0x6a5a8a, roughness: 0.6 })
-  );
-  office.position.copy(pos).setY(1.3);
-  scene.add(office);
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.1), new THREE.MeshBasicMaterial({ color: 0xf0d24a }));
-  sign.position.copy(pos).add(new THREE.Vector3(0, 2.9, 1));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'LAW OFFICE', w: 2.6, d: 2.2, wall: 0x5e5180, accent: 0xd0b04a, sign: { fg: '#f6e3a0', bg: '#221a33', accent: '#f0d24a' } });
 
   world.lawyer = { pos };
   world.lawyerRetained = !!save?.lawyer;

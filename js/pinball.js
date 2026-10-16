@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { signTexture, faceNearestRoad } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
@@ -11,6 +12,7 @@ import { addRep } from './economy.js';
 // Three balls, then the score pays tickets (cash) and a saved high score.
 
 const BALLS = 3;
+const STAKE = 20;
 const W = 180, H = 300;   // playfield px
 const GRAV = 220;         // px/s^2
 
@@ -19,11 +21,45 @@ export function initPinball(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(-26, 0, 20));
   placeStreetSite(world.city, pos, 2.4, 'pinball');
 
-  const cab = new THREE.Mesh(
-    new THREE.BoxGeometry(1.4, 2, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x401850, roughness: 0.6, metalness: 0.2 })
+  // a proper cabinet: legs, body, a sloped lit playfield under glass and a
+  // backbox with the marquee, turned so the player end faces the street
+  const cab = new THREE.Group();
+  const body = new THREE.MeshStandardMaterial({ color: 0x401850, roughness: 0.55, metalness: 0.25 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.3, metalness: 0.85 });
+  for (const [x, z] of [[-0.36, 0.62], [0.36, 0.62], [-0.36, -0.62], [0.36, -0.62]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.72, 0.07), chrome);
+    leg.position.set(x, 0.36, z);
+    cab.add(leg);
+  }
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.42, 1.5), body);
+  box.position.set(0, 0.93, 0);
+  box.rotation.x = -0.07; // playfields tilt up toward the back
+  cab.add(box);
+  const field = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.72, 1.38),
+    new THREE.MeshStandardMaterial({ color: 0x120a30, emissive: 0x6a30ff, emissiveIntensity: 0.55, roughness: 0.2 })
   );
-  cab.position.copy(pos).setY(1);
+  field.rotation.x = -Math.PI / 2 - 0.07;
+  field.position.set(0, 1.15, 0);
+  cab.add(field);
+  const backbox = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.72, 0.16), body);
+  backbox.position.set(0, 1.5, -0.72);
+  cab.add(backbox);
+  const marquee = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.76, 0.19),
+    new THREE.MeshBasicMaterial({ map: signTexture('PINBALL', { fg: '#ffe9ff', bg: '#2a0d44', accent: '#c070ff' }), toneMapped: false })
+  );
+  marquee.position.set(0, 1.62, -0.635);
+  cab.add(marquee);
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.64, 0.34),
+    new THREE.MeshStandardMaterial({ color: 0x220a10, emissive: 0xff7a30, emissiveIntensity: 0.45 })
+  );
+  screen.position.set(0, 1.36, -0.635);
+  cab.add(screen);
+  cab.position.set(pos.x, 0, pos.z);
+  cab.rotation.y = faceNearestRoad(world.city, pos);
+  cab.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   scene.add(cab);
 
   world.pinball = {
@@ -75,7 +111,10 @@ function launchBall(world) {
 
 function start(world) {
   const pb = world.pinball;
+  if (world.money < STAKE) { showToast('Not enough cash for a game'); return; }
+  world.money -= STAKE;
   pb.playing = true; pb.ballsLeft = BALLS; pb.score = 0;
+  pb.standX = world.player.pos.x; pb.standZ = world.player.pos.z;
   ensureHud(world).el.style.display = 'block';
   launchBall(world);
   showMissionMsg('PINBALL', 'A left flipper · D right flipper — keep it alive!', '#b060ff');
@@ -104,7 +143,10 @@ export function updatePinball(world, dt, keys, pressed) {
   const d = Math.hypot(player.pos.x - pb.pos.x, player.pos.z - pb.pos.z);
 
   if (pb.playing) {
-    if (d > 4 || !onFoot) { finish(world); return; }
+    // W/S walks away; A/D are the flippers, so undo the on-foot strafe
+    if (d > 4 || !onFoot || keys['KeyW'] || keys['KeyS']) { finish(world); return; }
+    player.pos.x = pb.standX; player.pos.z = pb.standZ;
+    player.vel.x = 0; player.vel.z = 0;
     const hud = ensureHud(world);
     const step = Math.min(dt, 0.05);
     // flipper visuals
@@ -124,6 +166,7 @@ export function updatePinball(world, dt, keys, pressed) {
         if (Math.hypot(pb.bx - b.x, pb.by - b.y) < 20) {
           const a = Math.atan2(pb.by - b.y, pb.bx - b.x);
           pb.vx = Math.cos(a) * 240; pb.vy = Math.sin(a) * 240;
+          pb.bx = b.x + Math.cos(a) * 21; pb.by = b.y + Math.sin(a) * 21; // out of reach: one hit per bounce
           pb.score += 150; sfxPickup();
         }
       }
@@ -147,12 +190,12 @@ export function updatePinball(world, dt, keys, pressed) {
       hud.ball.style.top = (pb.by - 7) + 'px';
     }
     hud.score.textContent = `SCORE ${pb.score}  ·  BALLS ${pb.ballsLeft}`;
-    world.pinballHint = `PINBALL — ${pb.ballsLeft} balls · A/D flippers`;
+    world.pinballHint = `PINBALL — ${pb.ballsLeft} balls · A/D flippers · W/S walk away`;
     return;
   }
 
   if (d > 3.2 || !onFoot) { if (pb.hud) pb.hud.el.style.display = 'none'; return; }
-  world.pinballHint = `PINBALL — press <b>E</b> to play${pb.high ? ` · best ${pb.high}` : ''}`;
+  world.pinballHint = `PINBALL — press <b>E</b> to play ($${STAKE})${pb.high ? ` · best ${pb.high}` : ''}`;
   if (pressed['KeyE']) start(world);
 }
 

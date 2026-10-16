@@ -16,15 +16,21 @@ const DIG_HOLD = 1.5;
 const DETECT_RANGE = 22;   // metres the meter reacts within
 
 function beachSpot(world) {
-  // a strip of sand just inland of the seawall, within the shoreline span
-  const x = WATER_X0 - 4 - Math.random() * 20;
-  const z = (Math.random() * 2 - 1) * (WATER_Z - 20);
-  return new THREE.Vector3(x, 0, z);
+  // the strip of sand between the outer ring road and the seawall; retry any
+  // spot that lands in a collider, or it could never be dug
+  for (let i = 0; i < 30; i++) {
+    const x = WATER_X0 - 1.5 - Math.random() * 4;
+    const z = (Math.random() * 2 - 1) * (WATER_Z - 20);
+    if (!pointBlocked(new THREE.Vector3(x, 1, z), world.city.colliders, DIG_RADIUS)) return new THREE.Vector3(x, 0, z);
+  }
+  return new THREE.Vector3(WATER_X0 - 3, 0, (Math.random() * 2 - 1) * 40);
 }
 
 export function initTreasure(scene, world, save) {
-  const shack = new THREE.Vector3(WATER_X0 - 10, 0, 0);
-  if (pointBlocked(new THREE.Vector3(shack.x, 1, shack.z), world.city.colliders, 2)) shack.set(WATER_X0 - 16, 0, 10);
+  // the sand runs between the outer ring road (ends 6m inland) and the seawall
+  // (z = 16 keeps it clear of the crosstown street that meets the shore at z = 0)
+  const shack = new THREE.Vector3(WATER_X0 - 3, 0, 16);
+  if (pointBlocked(new THREE.Vector3(shack.x, 1, shack.z), world.city.colliders, 1)) shack.set(WATER_X0 - 3, 0, 24);
 
   const hut = new THREE.Mesh(
     new THREE.BoxGeometry(2.4, 2.2, 2),

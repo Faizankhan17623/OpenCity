@@ -3,6 +3,7 @@ export const runtimeProfile = {
   "id": "basic",
   "mapVersion": 1,
   "coreVersion": "0.3.10-local",
+  "presentationArt": false,
   "save": {
     "live": "opencity.basic.save.v2",
     "active": "opencity.basic.active",

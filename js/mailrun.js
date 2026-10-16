@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxMissionPass, sfxMissionFail, sfxPickup } from './sound.js';
@@ -20,18 +21,7 @@ export function initMailRun(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 2)) pos = world.city.spawn.clone().add(new THREE.Vector3(14, 0, 26));
   placeStreetSite(world.city, pos, 2.6, 'post-office');
 
-  const office = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 2.6, 2.2),
-    new THREE.MeshStandardMaterial({ color: 0x2a4d8a, roughness: 0.7 })
-  );
-  office.position.copy(pos).setY(1.3);
-  scene.add(office);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 0.6, 0.12),
-    new THREE.MeshBasicMaterial({ color: 0xffd24a })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 3, 1.15));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'POST OFFICE', w: 2.8, d: 2.3, wall: 0x2f558f, accent: 0xd03030, sign: { fg: '#ffffff', bg: '#1d3a6b', accent: '#ffd24a' } });
 
   const ring = new THREE.Mesh(
     new THREE.CylinderGeometry(DROP_RADIUS, DROP_RADIUS, 0.1, 24),
@@ -117,6 +107,7 @@ export function updateMailRun(world, dt, keys, pressed) {
     const d = Math.hypot(focus.x - m.pos.x, focus.z - m.pos.z);
     if (d > 6 || m.cooldown > 0) return;
     world.mailHint = 'POST OFFICE — press <b>E</b> to load a mail round';
+    if (player.inCar) world.carActionE = true;
     if (pressed['KeyE']) {
       if (layRoute(world) < DROPS) { showToast('No clear route right now — try again shortly'); m.cooldown = 3; return; }
       m.on = true;

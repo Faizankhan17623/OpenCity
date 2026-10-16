@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { postSign } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg } from './hud.js';
 import { sfxMissionPass } from './sound.js';
@@ -22,6 +23,7 @@ export function initPerks(scene, world, save) {
   const probe = new THREE.Vector3(pos.x, 1, pos.z);
   if (pointBlocked(probe, world.city.colliders, 1.4)) pos = world.city.spawn.clone().add(new THREE.Vector3(-30, 0, 26));
   placeStreetSite(world.city, pos, 2.5, 'perks');
+  postSign(scene, world.city, pos, 'THE SHRINE', { fg: '#fff0c8', bg: '#2a1a0a', accent: '#ffb648' });
 
   const shrine = new THREE.Mesh(
     new THREE.ConeGeometry(0.8, 2.2, 5),

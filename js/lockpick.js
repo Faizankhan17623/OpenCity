@@ -11,6 +11,8 @@ import { addCrime } from './police.js';
 // lock. Nail it and the car is yours to drive (and a little reward for the
 // steal, plus some heat). Fancier cars have a tighter sweet spot. Miss and the
 // pick jams for a beat. Separate from just hopping into an unlocked ride.
+// A car you steal stays gone for the rest of the in-game day (reloading the
+// save won't put it back); a fresh locked one turns up the next day.
 
 const CARS = [
   { color: '#1a1a22', top: 62, accel: 30, reward: 800, sweet: 0.26, name: 'blacked-out coupe' },
@@ -32,14 +34,26 @@ function spawnSpot(world, i) {
   return { x: world.city.spawn.x + 40 + i * 12, z: world.city.spawn.z + 40 };
 }
 
+function spawnLocked(scene, world, car, i) {
+  const spot = spawnSpot(world, i);
+  const def = car.def;
+  car.veh = makeVehicle(scene, spot.x, spot.z, Math.random() * Math.PI, def.color, { top: def.top, accel: def.accel });
+  car.veh.locked = true; // kept out of world.parked until picked
+  car.pos = car.veh.pos;
+  car.picked = false;
+}
+
 export function initLockpick(scene, world, save) {
+  // cars already stolen today stay gone after a reload
+  const day = world.dailyDay;
+  const takenToday = save?.lockpickDay === day ? new Set(save?.lockpickPicked || []) : new Set();
   const cars = CARS.map((def, i) => {
-    const spot = spawnSpot(world, i);
-    const veh = makeVehicle(scene, spot.x, spot.z, Math.random() * Math.PI, def.color, { top: def.top, accel: def.accel });
-    veh.locked = true; // kept out of world.parked until picked
-    return { def, veh, pos: veh.pos, picked: false };
+    const car = { def, veh: null, pos: null, picked: takenToday.has(i) };
+    if (!car.picked) spawnLocked(scene, world, car, i);
+    return car;
   });
   world.lockpick = {
+    scene, day,
     cars,
     active: null,   // the car being picked
     marker: 0, dir: 1, jam: 0,
@@ -69,6 +83,11 @@ export function updateLockpick(world, dt, keys, pressed) {
   const lp = world.lockpick;
   if (!lp) return;
   world.lockpickHint = null;
+  // a new day: fresh locked cars replace the ones stolen yesterday
+  if (lp.day !== world.dailyDay) {
+    lp.day = world.dailyDay;
+    lp.cars.forEach((car, i) => { if (car.picked && !lp.active) spawnLocked(lp.scene, world, car, i); });
+  }
   const player = world.player;
   const onFoot = !player.inCar && !player.inHeli && !player.inBoat;
   const hud = ensureHud(world);
@@ -134,5 +153,10 @@ export function updateLockpick(world, dt, keys, pressed) {
 }
 
 export function lockpickSave(world) {
-  return { carsStolen: world.lockpick?.stolen };
+  const lp = world.lockpick;
+  return {
+    carsStolen: lp?.stolen,
+    lockpickDay: lp?.day,
+    lockpickPicked: lp ? lp.cars.map((c, i) => (c.picked ? i : -1)).filter((i) => i >= 0) : [],
+  };
 }

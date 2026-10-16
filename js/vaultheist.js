@@ -201,16 +201,24 @@ export function updateVaultHeist(world, dt, keys, pressed) {
       world.wantedTimer = 0;
       addChaos(world, 55);
       sfxMissionPass();
-      showMissionMsg('GRAB THE TAKE!', 'Now lose the heat — reach the blue beam at the docks', '#40d0ff');
+      showMissionMsg('GRAB THE TAKE!', 'Now lose the heat, then reach the blue beam', '#40d0ff');
       showNews('downtown vault blown — crew on the run with the take');
     }
     return;
   }
 
   // ---- escape: reach the drop-off beam ----
-  world.vaultHint = 'THE VAULT — escape to the <b>blue beam</b> at the docks with the take!';
   v.beam.rotation.y += dt;
-  if (Math.hypot(player.pos.x - v.drop.x, player.pos.z - v.drop.z) < 5) {
+  const atDrop = Math.hypot(player.pos.x - v.drop.x, player.pos.z - v.drop.z) < 5;
+  // the drop crew won't open up while you're still bringing the cops
+  if (world.wanted > 0) {
+    world.vaultHint = atDrop
+      ? 'THE VAULT — the drop crew won\'t open up with cops on you. <b>Lose the heat</b> first!'
+      : 'THE VAULT — <b>lose the heat</b>, then bring the take to the <b>blue beam</b>';
+    return;
+  }
+  world.vaultHint = 'THE VAULT — heat lost! Bring the take to the <b>blue beam</b>';
+  if (atDrop) {
     v.state = 'idle';
     v.doneDay = world.dailyDay;
     v.beam.visible = false;
@@ -222,7 +230,7 @@ export function updateVaultHeist(world, dt, keys, pressed) {
     v.geared = false;
     sfxMissionPass();
     showMissionMsg('VAULT CLEANED OUT!', `+$${pay.toLocaleString()}${mult > 1 ? ` (×${mult.toFixed(2)} take)` : ''} — a clean getaway`, '#ffd24a');
-    showNews('record vault haul vanishes into the docks');
+    showNews('record vault haul vanishes without a trace');
     world.onSave?.();
   }
 }

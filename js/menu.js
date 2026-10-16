@@ -1,3 +1,4 @@
+import { presentationArt } from './uiArt.js';
 import { CITY, HALF } from './city.js';
 import { drawMapMarkers } from './mapMarkers.js';
 import { resolutionPolicy } from './renderResolution.js';
@@ -231,7 +232,10 @@ export function initMenu(h) {
     wrap.append(check, document.createTextNode(label)); filters.appendChild(wrap);
   }
   const legend = document.createElement('div');
-  legend.textContent = 'B Bank · V Dealer · G Workshop · S Store · Pump Petrol · Lightning Nitro · Blue Police';
+  // editions without marker art draw vector icons (mapMarkers.js drawGlyph)
+  legend.textContent = presentationArt
+    ? 'B Bank · V Dealer · G Workshop · S Store · Pump Petrol · Lightning Nitro · Blue Police'
+    : '$ Bank · Car Dealer · Wrench Workshop · Person Shop · Pump Petrol · N Nitro · Key Pickup · Triangle Stunt/Hazard · Cross Hospital · Star Police · Diamond Objective';
   legend.style.cssText = 'color:#f4eee3;font:13px sans-serif;text-align:center;margin-top:8px';
   mapEl.append(tip, mapCanvas, filters, legend);
   if (hooks.onCloseMap) {

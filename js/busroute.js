@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxMissionPass, sfxPickup } from './sound.js';
@@ -39,18 +40,7 @@ export function initBusRoute(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 2)) pos = world.city.spawn.clone().add(new THREE.Vector3(-26, 0, 20));
   placeStreetSite(world.city, pos, 2.8, 'bus-depot');
 
-  const booth = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 2.6, 2),
-    new THREE.MeshStandardMaterial({ color: 0x2f5f8a, roughness: 0.7 })
-  );
-  booth.position.copy(pos).setY(1.3);
-  scene.add(booth);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 0.7, 0.15),
-    new THREE.MeshBasicMaterial({ color: 0xffd24a })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 2.9, 0));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'CITY LINE', w: 2.8, d: 2.2, wall: 0x3d6d96, accent: 0xe0b22c, sign: { fg: '#ffd24a', bg: '#10263a', accent: '#ffd24a' } });
 
   // one reusable stop ring + beacon that hops to the next stop
   const ring = new THREE.Mesh(
@@ -94,12 +84,12 @@ function endRoute(world, finished) {
   b.cooldown = 4;
   if (finished) {
     b.runs++;
-    const pay = FARE_PER_STOP * STOPS + LOOP_BONUS;
+    const pay = LOOP_BONUS; // stop fares were already paid at each stop
     world.money += pay;
     addRep(world, 250);
     world.addXP?.(200);
     sfxMissionPass();
-    showMissionMsg('ROUTE COMPLETE', `Full loop driven — +$${pay.toLocaleString()}`, '#ffd24a');
+    showMissionMsg('ROUTE COMPLETE', `Full loop driven — +$${pay.toLocaleString()} bonus ($${(FARE_PER_STOP * STOPS + pay).toLocaleString()} total)`, '#ffd24a');
     showNews('the city line keeps the neighbourhood moving');
     world.onSave?.();
   }
@@ -121,6 +111,7 @@ export function updateBusRoute(world, dt, keys, pressed) {
     if (d > 6 || b.cooldown > 0) return;
     if (!inVehicle) { world.busHint = 'CITY LINE DEPOT — bring a vehicle to start a route'; return; }
     world.busHint = 'CITY LINE — press <b>E</b> to start the bus route';
+    world.carActionE = true;
     if (pressed['KeyE']) {
       b.stops = pickStops(world, b.pos);
       if (b.stops.length < STOPS) { showToast('No clear route right now — try again shortly'); b.cooldown = 3; return; }

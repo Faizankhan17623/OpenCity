@@ -1,39 +1,31 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
 import { addRep } from './economy.js';
 
-// KARAOKE BAR: grab the mic and hit the notes in time. Four lanes (D F J K);
+// KARAOKE BAR: grab the mic and hit the notes in time. Four lanes (1 2 3 4);
 // a note slides down each lane and you press its key as it crosses the line.
 // Hits build a combo and the crowd's mood; the final score pays tips and rep.
+// Lanes are the number keys: D/F/J/K would also strafe, punch and fire the jetpack.
 // A light, musical change of pace from street busking.
 
-const LANES = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'];
-const LANE_LABEL = ['D', 'F', 'J', 'K'];
+const LANES = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
+const LANE_LABEL = ['1', '2', '3', '4'];
 const NOTE_COUNT = 24;
 const FALL = 2.0;         // seconds for a note to fall to the line
 const HIT_WINDOW = 0.18;  // seconds of leeway around the line
 const SPAWN_GAP = 0.7;
+const STAKE = 25;         // cover charge for the mic
 
 export function initKaraoke(scene, world, save) {
   let pos = world.city.spawn.clone().add(new THREE.Vector3(-30, 0, -8));
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(-26, 0, -12));
   placeStreetSite(world.city, pos, 2.6, 'karaoke');
 
-  const bar = new THREE.Mesh(
-    new THREE.BoxGeometry(3, 2.6, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x2a1840, roughness: 0.7 })
-  );
-  bar.position.copy(pos).setY(1.3);
-  scene.add(bar);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 0.7, 0.12),
-    new THREE.MeshBasicMaterial({ color: 0xff55c0 })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 3, 1.2));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'KARAOKE', w: 3, d: 2.4, wall: 0x2e1a46, accent: 0xff55c0, sign: { fg: '#ffd6f0', bg: '#1d0d2e', accent: '#ff55c0' } });
 
   world.karaoke = {
     pos, playing: false,
@@ -103,14 +95,16 @@ export function updateKaraoke(world, dt, keys, pressed) {
   if (!k.playing) {
     const d = Math.hypot(player.pos.x - k.pos.x, player.pos.z - k.pos.z);
     if (d > 3.4 || !onFoot) return;
-    world.karaokeHint = `KARAOKE BAR — press <b>E</b> to perform${k.high ? ` (best ${k.high})` : ''}`;
+    world.karaokeHint = `KARAOKE BAR — press <b>E</b> to perform ($${STAKE})${k.high ? ` (best ${k.high})` : ''}`;
     if (pressed['KeyE']) {
+      if (world.money < STAKE) { showToast('Not enough cash for the cover charge'); return; }
+      world.money -= STAKE;
       const hud = ensureHud(world);
       hud.el.style.display = 'block';
       k.playing = true; k.notes.length = 0; k.spawned = 0; k.spawnT = 0; k.t = 0;
       k.hits = 0; k.combo = 0; k.best = 0; k.score = 0;
       sfxPickup();
-      showMissionMsg('KARAOKE', 'Hit D F J K as the notes cross the line!', '#ff9ad8');
+      showMissionMsg('KARAOKE', 'Hit 1 2 3 4 as the notes cross the line!', '#ff9ad8');
     }
     return;
   }
@@ -118,6 +112,7 @@ export function updateKaraoke(world, dt, keys, pressed) {
   // walking away or driving off ends the set early
   if (!onFoot || Math.hypot(player.pos.x - k.pos.x, player.pos.z - k.pos.z) > 6) { finish(world); return; }
 
+  world.nearKiosk = true; // digits sing here, not switch weapons
   k.t += dt;
   k.spawnT -= dt;
   if (k.spawned < NOTE_COUNT && k.spawnT <= 0) { spawnNote(world); k.spawnT = SPAWN_GAP; }

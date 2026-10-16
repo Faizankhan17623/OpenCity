@@ -93,6 +93,7 @@ export function updateGokart(world, dt, keys, pressed) {
     if (d > 6) return;
     if (!player.inCar) { world.kartHint = 'KART CIRCUIT — roll a vehicle into the ring to race'; return; }
     world.kartHint = `KART CIRCUIT — press <b>E</b> for ${LAPS} laps` + (g.best ? ` (best ${g.best}s)` : '');
+    world.carActionE = true;
     if (pressed['KeyE']) {
       g.active = true; g.lap = 0; g.idx = 0; g.t = 0; g.countdown = 3;
       moveGate(world);

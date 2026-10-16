@@ -135,7 +135,10 @@ export function buildSlotPicker(container, cloud = null) {
       if (remote) {
         const d = new Date(remote.updated_at);
         const when = isNaN(d) ? '' : d.toLocaleDateString();
-        cloudLine = `<div style="font:600 9px Consolas,monospace;color:#7cf78c;margin-top:4px">☁ $${(remote.summary.money + remote.summary.bank).toLocaleString()} · LVL ${remote.summary.level}${when ? ' · ' + when : ''}</div>`;
+        // server data: coerce to numbers before it goes into HTML
+        const cash = (Number(remote.summary?.money) || 0) + (Number(remote.summary?.bank) || 0);
+        const lvl = Math.max(1, Math.floor(Number(remote.summary?.level) || 1));
+        cloudLine = `<div style="font:600 9px Consolas,monospace;color:#7cf78c;margin-top:4px">☁ $${cash.toLocaleString()} · LVL ${lvl}${when ? ' · ' + when : ''}</div>`;
       } else {
         cloudLine = `<div style="font:600 9px Consolas,monospace;color:#8ea6bb;margin-top:4px">☁ no cloud copy</div>`;
       }

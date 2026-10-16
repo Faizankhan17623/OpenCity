@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxMissionPass, sfxMissionFail, sfxPickup } from './sound.js';
@@ -21,12 +22,7 @@ export function initGarbage(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 2)) pos = world.city.spawn.clone().add(new THREE.Vector3(26, 0, -24));
   placeStreetSite(world.city, pos, 2.8, 'yard');
 
-  const yard = new THREE.Mesh(
-    new THREE.BoxGeometry(3, 2.4, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x3f6b3a, roughness: 0.8 })
-  );
-  yard.position.copy(pos).setY(1.2);
-  scene.add(yard);
+  storefront(scene, world.city, pos, { name: 'SANITATION', w: 3, d: 2.4, wall: 0x4a6b44, accent: 0x2e7d32, sign: { fg: '#d8ffcf', bg: '#15291a', accent: '#5fd16a' } });
 
   // a pool of bin meshes we show/hide as routes come and go
   const bins = [];
@@ -81,12 +77,12 @@ function endRun(world, finished) {
   clearBins(world);
   if (finished) {
     g.runs++;
-    const pay = PER_BIN * BINS + SWEEP_BONUS;
+    const pay = SWEEP_BONUS; // each bin was already paid as it was emptied
     world.money += pay;
     addRep(world, 220);
     world.addXP?.(180);
     sfxMissionPass();
-    showMissionMsg('ROUTE CLEARED', `Every bin emptied — +$${pay.toLocaleString()}`, '#ffd24a');
+    showMissionMsg('ROUTE CLEARED', `Every bin emptied — +$${pay.toLocaleString()} bonus ($${(PER_BIN * BINS + pay).toLocaleString()} total)`, '#ffd24a');
     showNews('sanitation keeps the streets clean another day');
     world.onSave?.();
   } else {
@@ -110,6 +106,7 @@ export function updateGarbage(world, dt, keys, pressed) {
     if (d > 6 || g.cooldown > 0) return;
     if (!inVehicle) { world.garbageHint = 'SANITATION YARD — bring a vehicle to start a run'; return; }
     world.garbageHint = 'SANITATION — press <b>E</b> to start the garbage run';
+    world.carActionE = true;
     if (pressed['KeyE']) {
       if (layRoute(world) < BINS) { showToast('No clear route right now — try again shortly'); g.cooldown = 3; return; }
       g.on = true;
@@ -132,7 +129,7 @@ export function updateGarbage(world, dt, keys, pressed) {
     b.mesh.rotation.y += dt;
     const d = Math.hypot(focus.x - b.pos.x, focus.z - b.pos.z);
     if (d < nd) { nd = d; nearest = b; }
-    if (d < BIN_RADIUS) {
+    if (d < BIN_RADIUS && inVehicle) {
       b.done = true;
       b.mesh.visible = false;
       g.left--;

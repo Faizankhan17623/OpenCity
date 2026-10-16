@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
@@ -18,18 +19,7 @@ export function initBowling(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(-18, 0, -20));
   placeStreetSite(world.city, pos, 2.6, 'bowling');
 
-  const hall = new THREE.Mesh(
-    new THREE.BoxGeometry(3.2, 2.6, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x242a48, roughness: 0.7 })
-  );
-  hall.position.copy(pos).setY(1.3);
-  scene.add(hall);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 0.6, 0.12),
-    new THREE.MeshBasicMaterial({ color: 0x55e6ff })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 3, 1.25));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'STRIKE LANES', w: 3.2, d: 2.4, wall: 0x2c3358, accent: 0x55e6ff, sign: { fg: '#ffffff', bg: '#111733', accent: '#55e6ff' } });
 
   world.bowling = {
     pos, playing: false,
@@ -81,9 +71,10 @@ function finish(world) {
   const pay = Math.round(b.score * 8);
   world.money += pay;
   addRep(world, Math.round(b.score / 2));
-  if (b.score > b.high) { b.high = b.score; showNews('a new top score goes up at the bowling alley'); }
+  const newBest = b.score > b.high;
+  if (newBest) { b.high = b.score; showNews('a new top score goes up at the bowling alley'); }
   (b.score >= 100 ? sfxMissionPass : sfxMissionFail)();
-  showMissionMsg('GAME OVER', `Score ${b.score} · +$${pay}${b.score > b.high ? '' : ` · best ${b.high}`}`, '#55e6ff');
+  showMissionMsg('GAME OVER', `Score ${b.score} · +$${pay}${newBest ? ' · NEW BEST!' : ` · best ${b.high}`}`, '#55e6ff');
   world.onSave?.();
 }
 
@@ -93,7 +84,8 @@ function roll(world) {
   const aimAcc = 1 - Math.abs(b.aim - 0.5) * 2;      // 1 best
   const powAcc = Math.max(0, (b.marker - 0.4) / 0.6); // rewards high power
   const quality = Math.max(0, Math.min(1, aimAcc * 0.5 + powAcc * 0.5));
-  let knocked = Math.round(b.pinsStanding * (0.4 + quality * 0.65));
+  // a wild roll can still clip a pin or two; it no longer floors at 40% of the rack
+  let knocked = Math.round(b.pinsStanding * (0.1 + quality * 0.95));
   knocked = Math.max(0, Math.min(b.pinsStanding, knocked));
   b.pinsStanding -= knocked;
   b.score += knocked;

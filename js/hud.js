@@ -326,7 +326,9 @@ function drawMinimap(world) {
     polygon(z);
   }
 
-  drawMapMarkers(g,world,toMap,{size:14,filter:false});
+  // Off-screen shops and services stayed pinned to the rim with distance labels
+  // and buried the map; only objectives (missions, job targets, waypoints) pin.
+  drawMapMarkers(g,world,toMap,{size:14,filter:false,pinOffscreen:(p)=>p.category==='objectives'});
 
   // player arrow
   const [mx, mz] = toMap(p.pos.x, p.pos.z);

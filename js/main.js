@@ -51,7 +51,7 @@ import { initRaces, updateRaces, endRace } from './races.js';
 import { initWater, updateWater, physStepBoat, inWater, WATER_Y } from './water.js';
 import { initDog, updateDog } from './dog.js';
 import { initHeist, updateHeist, failHeist } from './heist.js';
-import { initVaultHeist, updateVaultHeist, vaultHeistSave } from './vaultheist.js';
+import { initVaultHeist, updateVaultHeist, vaultHeistSave, failVaultHeist } from './vaultheist.js';
 import { initBombSquad, updateBombSquad, bombSquadSave } from './bombsquad.js';
 import { initAirTaxi, updateAirTaxi, airTaxiSave } from './airtaxi.js';
 import { initBusRoute, updateBusRoute, busRouteSave } from './busroute.js';
@@ -61,6 +61,10 @@ import { initLockpick, updateLockpick, lockpickSave } from './lockpick.js';
 import { initKaraoke, updateKaraoke, karaokeSave } from './karaoke.js';
 import { initMailRun, updateMailRun, mailRunSave } from './mailrun.js';
 import { initTreasure, updateTreasure, treasureSave } from './treasure.js';
+import { initLifeguard, updateLifeguard, lifeguardSave } from './lifeguard.js';
+import { initCatRescue, updateCatRescue, catRescueSave } from './catrescue.js';
+import { initWaterTaxi, updateWaterTaxi, waterTaxiSave } from './watertaxi.js';
+import { initFireworks, updateFireworks, fireworksSave } from './fireworks.js';
 import { initBarGames, updateBarGames, barGamesSave } from './bargames.js';
 import { initBowling, updateBowling, bowlingSave } from './bowling.js';
 import { initArchery, updateArchery, archerySave } from './archery.js';
@@ -452,6 +456,10 @@ initLockpick(scene, world, save);
 initKaraoke(scene, world, save);
 initMailRun(scene, world, save);
 initTreasure(scene, world, save);
+initLifeguard(scene, world, save);
+initCatRescue(scene, world, save);
+initWaterTaxi(scene, world, save);
+initFireworks(scene, world, save);
 initBarGames(scene, world, save);
 initBowling(scene, world, save);
 initArchery(scene, world, save);
@@ -851,6 +859,10 @@ function saveGame() {
       ...karaokeSave(world),
       ...mailRunSave(world),
       ...treasureSave(world),
+      ...lifeguardSave(world),
+      ...catRescueSave(world),
+      ...waterTaxiSave(world),
+      ...fireworksSave(world),
       ...barGamesSave(world),
       ...bowlingSave(world),
       ...archerySave(world),
@@ -1634,6 +1646,10 @@ function updateOnFoot(dt) {
   else if (world.karaokeHint) setHint(world.karaokeHint);
   else if (world.mailHint) setHint(world.mailHint);
   else if (world.treasureHint) setHint(world.treasureHint);
+  else if (world.lifeguardHint) setHint(world.lifeguardHint);
+  else if (world.catHint) setHint(world.catHint);
+  else if (world.waterTaxiHint) setHint(world.waterTaxiHint);
+  else if (world.fireworksHint) setHint(world.fireworksHint);
   else if (world.barHint) setHint(world.barHint);
   else if (world.bowlingHint) setHint(world.bowlingHint);
   else if (world.archeryHint) setHint(world.archeryHint);
@@ -2533,7 +2549,8 @@ function updateDriving(dt) {
 
   // E refuels before exiting when parked at a pump.
   const atPump = canRefuel(world, car) && !keys.ShiftLeft && !keys.ShiftRight;
-  if (pressed['KeyE'] && !atPump) {
+  // ...and when a roadside activity offered E last frame (start a route, a tow, a kart race)
+  if (pressed['KeyE'] && !atPump && !world.carActionE) {
     if (car.vel.length() < 5) beginExitCar();
     else showToast('Slow down to exit!');
   }
@@ -3028,6 +3045,7 @@ function triggerOver(text, color) {
   endArena(world, true);
   endRace(world, true);
   failHeist(world);
+  failVaultHeist(world);
   endVigilante(world, text === 'WASTED' ? 'You got wasted' : 'You got busted');
   endFightClub(world, 'knocked out cold');
   endFinale(world);
@@ -3486,6 +3504,7 @@ function update(dt) {
   updatePickups(dt);
   if (mission && mission.type === 'mech') mission._boom = explodeRocket;
   updateMissions(world, dt);
+  world.carActionE = false; // activities below set it when they offer E to a driver
   updateShops(shopsState, world, dt, keys, pressed);
   updateGang(world, dt);
   updateArmy(world, dt, armyHooks);
@@ -3508,6 +3527,10 @@ function update(dt) {
   updateKaraoke(world, dt, keys, pressed);
   updateMailRun(world, dt, keys, pressed);
   updateTreasure(world, dt, keys, pressed);
+  updateLifeguard(world, dt, keys, pressed);
+  updateCatRescue(world, dt, keys, pressed);
+  updateWaterTaxi(world, dt);
+  updateFireworks(world, dt, keys, pressed);
   updateBarGames(world, dt, keys, pressed);
   updateBowling(world, dt, keys, pressed);
   updateArchery(world, dt, keys, pressed);
@@ -3658,7 +3681,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.lifeguardHint || world.catHint || world.waterTaxiHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||

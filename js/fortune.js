@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { postSign } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg } from './hud.js';
 import { sfxMissionPass, sfxPickup } from './sound.js';
@@ -28,6 +29,7 @@ export function initFortune(scene, world) {
   const probe = new THREE.Vector3(pos.x, 1, pos.z);
   if (pointBlocked(probe, world.city.colliders, 1.8)) pos = world.city.spawn.clone().add(new THREE.Vector3(-16, 0, 38));
   placeStreetSite(world.city, pos, 2.5, 'fortune');
+  postSign(scene, world.city, pos, 'MADAME ZAZA', { fg: '#f3e0ff', bg: '#24103a', accent: '#c070ff' });
 
   const tent = new THREE.Mesh(
     new THREE.ConeGeometry(1.6, 2.2, 6),

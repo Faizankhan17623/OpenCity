@@ -1,6 +1,7 @@
 import { availableFunds, spendMoney } from './wallet.js';
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { postSign } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast } from './hud.js';
 import { sfxPickup } from './sound.js';
@@ -18,6 +19,7 @@ export function initArmor(scene, world, save) {
   const probe = new THREE.Vector3(pos.x, 1, pos.z);
   if (pointBlocked(probe, world.city.colliders, 1.4)) pos = world.city.spawn.clone().add(new THREE.Vector3(32, 0, 36));
   placeStreetSite(world.city, pos, 2.5, 'armor');
+  postSign(scene, world.city, pos, 'SURPLUS & SUNDRY', { fg: '#e8f0d0', bg: '#232a16', accent: '#9acd32' });
 
   const crate = new THREE.Mesh(
     new THREE.BoxGeometry(1.4, 1, 1),
