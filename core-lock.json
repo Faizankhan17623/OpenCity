@@ -1,7 +1,7 @@
 {
-  "version": "0.3.20-local",
-  "sha256": "a34808716a176910a4fbcda8457e67ba5b2841930d3d8c48afe9919965944c94",
-  "source": "Basic main snapshot after a full review of the new activities: bus and garbage runs no longer pay their stop/bin fares twice, roadside activities can claim E from the driver seat so starting a route, tow or kart race no longer also exits the car, a death or arrest now resets The Vault, the racing championship needs medals, karaoke sings on 1-4, beach finds never spawn inside buildings, and the bowling new-best message; shared edition compatibility validated",
+  "version": "0.3.21-local",
+  "sha256": "c75e80d3794e27a76c35c609e59f0e50c10179312a46c456e5108a2cdf782fd2",
+  "source": "Basic main snapshot after The Vault escape requires losing the heat before the drop-off pays, as its description states, and its messages stop pointing to docks the drop-off is not at; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -216,7 +216,7 @@
     "js/ufo.js": "1f0981a490ee9bde9b5c40e562109d095adf85192ecc4f067e5e703b1c165c91",
     "js/uiArt.js": "6f57752864124712e765a3595b3d0b1040bffb2f12529833a2a8675033b18cc7",
     "js/valet.js": "78ae50f3ff3306ebfa631051e050ea51c27d8922c03cfd32bd5d1ea1951d1539",
-    "js/vaultheist.js": "de0c124bc4d9e98eb4ad8e0726c155d514db4d21b5a5b5007737d0447e89b4c7",
+    "js/vaultheist.js": "2ff02677ff106ffe9071f8b073c23c8cef517fa4697092042ef19ed9fd1f8621",
     "js/vehicleAuctions.js": "982c691db62cfe83d3db96d0bf7fec7905c014da96b71e0962029fa1bd19b605",
     "js/vehicleCatalog.js": "4aec617ab79712779ef607e7a3536548a312a18641dbe3ba8ea4ffb58757209c",
     "js/vehicleComponents.js": "92a5b1a2e8b9bf19192ea4269ba7a823eebddf4c79980440d9b166417bf78c0a",
