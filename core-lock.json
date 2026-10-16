@@ -1,7 +1,7 @@
 {
-  "version": "0.3.26-local",
-  "sha256": "5fc6e8fb75960f85ae5ead1ef639297e70fb58cbadd864f37d967223353c2a6d",
-  "source": "Basic main snapshot after moving the lifeguard tower, beach shack and buried finds off the outer ring road onto the sand strip by the seawall; shared edition compatibility validated",
+  "version": "0.3.27-local",
+  "sha256": "a6b334855144d309face213a9490c7c9dbcfd83185be8b1c397ad83679112bc6",
+  "source": "Basic main snapshot after adding a harbor water taxi that offers coastal fares to any boat; main.js wiring identical across both editions; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -134,7 +134,7 @@
     "js/lockpick.js": "711bf374022e64bd211a84acb6bdd3277b6ba0c3cab8e7fc5c9e49213f38ea46",
     "js/lottery.js": "c73c0da6573bca070a4dc62ff7bda75f8258918235dd9a525f3d3f1c792b82a4",
     "js/mailrun.js": "618777bc8a5b6811fde87fdcbc4242a1bc7e0eb84695e0db2a0d53e2338ce26a",
-    "js/main.js": "21b7de59aab2d718afcc687e2c26c6a4cdcd20900669286cfe37b4df3c944822",
+    "js/main.js": "30ca35e414cea58ca52117a7e63d65358192d52053d733a683701a0370960e49",
     "js/mall.js": "39f5388ec7c5ad2f400e7a91c99be6c8e8e953aa10c935bbda96c96c0eced3d8",
     "js/mapMarkers.js": "b2b1e8f00882858039d613ea566858f5d2583e6b3ddf920cde0c9d0fd2df2665",
     "js/mayor.js": "967fc4746cde6ae2f958245048c3294c28c570900bc4a37746aea7b20262833b",
@@ -233,6 +233,7 @@
     "js/vigilante.js": "4758b984433a37069356b9f087a39e23f22f46e1ec04efb806249a91365376a4",
     "js/wallet.js": "8d128f9385fb078b73621cd246b726c30ec4f913c95b93ea1058ea19d715b31d",
     "js/water.js": "0fe74dffd5bd6375e02694156c9cc70fef13fa82ec2f936afc9b7f2e398ca24f",
+    "js/watertaxi.js": "a4dce05e9a67cbd7f68d0420192bf9964fe59e23233d398387a7b858b872e3f8",
     "js/weather.js": "3e637385818bd76b0824b689370f51de31ebf31fef1fd241b23aab3008ded940",
     "js/weather_hazards.js": "67b143ac6d02bfff58018869d2f5ec81a04c0919c42dc8d309294ebd35e98727",
     "js/web.js": "adade9434bfaee61daa80430b0bdb95042621d5d32765f9cec585dcaccc3db13",
