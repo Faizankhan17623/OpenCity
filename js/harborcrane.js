@@ -33,8 +33,9 @@ const COLORS = [0xb5402e, 0x2e6fb5, 0x3a8a4a, 0xd08a2a, 0x7a8088, 0x7a3a8a, 0xd8
 
 // the swing: once the trolley stops, the load keeps going in the direction of
 // travel and swings like a pendulum, damping as it is paid out
-const SWING_K = 0.11;                 // swing amplitude per m/s of trolley speed
-const OMEGA = (Math.PI * 2) / 2.4;    // swing period 2.4 s
+const SWING_K = 0.12;                 // swing amplitude per m/s of trolley speed
+const OMEGA = (Math.PI * 2) / 2.0;    // swing period 2 s: a deck drop lands on the
+                                      // forward swing, a second-tier drop on the back swing
 const DAMP = 0.25;
 const LOWER_V = 3;                    // m/s the hoist pays out
 const SHUTTLE_V = 11;                 // trolley speed fetching a box

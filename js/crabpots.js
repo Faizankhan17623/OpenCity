@@ -128,7 +128,7 @@ export function initCrabPots(scene, world, save) {
   // first update clamps any pot "placed in the future" to start soaking now
   // (done there, not here, so the day counter has certainly been restored).
   for (const s of Array.isArray(save?.crabPots) ? save.crabPots : []) {
-    if (C.pots.length >= MAX_POTS || !Number.isFinite(s?.x) || !Number.isFinite(s?.z)) continue;
+    if (C.pots.length >= MAX_POTS || !Number.isFinite(s?.x) || !Number.isFinite(s?.z) || !inWater(s.x, s.z)) continue;
     placePot(C, s.x, s.z, Number.isFinite(s.t) ? s.t : -Infinity);
   }
   C.loaded = true;
