@@ -2,6 +2,10 @@
 import { presentationArt } from './uiArt.js';
 const images=new Map();
 function markerImage(kind){if(!presentationArt)return null;if(kind==='nitro')kind='pump';if(!images.has(kind)){const image=new Image();image.src='/assets/ui/markers/marker-'+kind+'.svg';images.set(kind,image);}return images.get(kind);}
+// Readable names for the world.*Blip objectives; anything new falls back to its
+// key split into words ("fooBarBlip" -> "Foo bar objective") instead of "fooBar objective".
+const BLIP_LABELS={airDropBlip:'Sky-fare drop-off',airPickBlip:'Sky-fare pickup',bhBlip:'Bounty target',billboardBlip:'Billboard',blackoutBlip:'Blackout job',boatraceBlip:'Boat-race buoy',bombBlip:'Bomb',bossrushBlip:'Boss rush',bountyBlip:'Bounty',busBlip:'Bus stop',catBlip:'Stranded cat',contractBlip:'Contract target',copBlip:'Police call',disasterBlip:'Disaster',droneBlip:'Drone delivery',druglabBlip:'Lab job',empireBlip:'Turf fight',fireBlip:'Fire',garbageBlip:'Garbage bin',gauntletBlip:'Gauntlet',kaijuBlip:'Kaiju',kartBlip:'Kart gate',lifeguardBlip:'Lifeguard call',mailBlip:'Mail drop',medBlip:'Patient',museumBlip:'Museum job',mwBlip:'Most-wanted target',nemesisBlip:'Nemesis',newsBlip:'News story',papBlip:'Paparazzi target',phoneBlip:'Payphone job',pizzaBlip:'Pizza delivery',raceBlip:'Race checkpoint',repoBlip:'Repo target',rideBlip:'Passenger',slipBlip:'Pink-slip race',smuggleBlip:'Smuggling drop',streetRaceBlip:'Street race',swingBlip:'Swing-race ring',syndBlip:'Syndicate job',taxiBlip:'Taxi fare',tourneyBlip:'Tournament',towBlip:'Tow job',trainBlip:'Train',truckBlip:'Armored truck',valetBlip:'Valet car',vigBlip:'Vigilante target',waterDropBlip:'Water-taxi drop-off',waterPickBlip:'Water-taxi pickup'};
+function blipLabel(key){if(BLIP_LABELS[key])return BLIP_LABELS[key];const words=key.slice(0,-4).replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase();return words.charAt(0).toUpperCase()+words.slice(1)+' objective';}
 export function collectMapMarkers(world){
  const sites=[],add=(pos,kind,label,category='services',quiet=false)=>{if(pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.z))sites.push({pos,kind,label,category,quiet});};
  for(const m of world.bank?.machines||[])if(!m.dead)add(m.pos,'bank','Bank / ATM');
@@ -23,7 +27,7 @@ export function collectMapMarkers(world){
  for(const pk of world.pickups||[])add(pk.pos,'owned',pk.type,'activities',true); // icon only: their labels buried the place names
  const m=world.mission;if(m)add(m.active?m.objectivePos:m.markerPos,'mission',m.active?'Objective':'Job','objectives');
  const stage=world.campaignService?.currentStage();if(stage)add(stage.position,'mission',stage.label,'objectives');
- for(const[key,value]of Object.entries(world))if(key.endsWith('Blip')&&value)add(value,key==='fireBlip'||key==='disasterBlip'||key==='bombBlip'?'hazard':'mission',key.slice(0,-4)+' objective','objectives');
+ for(const[key,value]of Object.entries(world))if(key.endsWith('Blip')&&value)add(value,key==='fireBlip'||key==='disasterBlip'||key==='bombBlip'?'hazard':'mission',blipLabel(key),'objectives');
  add(world.waypoint,'waypoint','Waypoint','objectives');
  return sites;
 }
