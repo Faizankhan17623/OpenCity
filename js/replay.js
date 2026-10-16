@@ -176,7 +176,7 @@ function freeCam(dt, keys, mouse, frame) {
     camInit = true;
   }
   camYaw -= (mouse.dx || 0) * 0.0022;
-  camPitch = Math.max(-1.4, Math.min(1.4, camPitch - (mouse.dy || 0) * 0.0018));
+  camPitch = Math.max(-1.4, Math.min(1.4, camPitch - (mouse.dy || 0) * 0.0022));
   const dir = _v.set(
     Math.sin(camYaw) * Math.cos(camPitch),
     Math.sin(camPitch),

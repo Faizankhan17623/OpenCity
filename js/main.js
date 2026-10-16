@@ -14,7 +14,7 @@ import { createRenderResolution, computeRenderSize } from './renderResolution.js
 import { componentEffects, applyVehicleDamage } from './vehicleComponents.js';
 import * as THREE from 'three';
 import { solidDistance, createWeaponModel, equipCharacter, poseWeapon, muzzlePosition } from './combat-view.js';
-import { initInput, endFrame, pollGamepad, keys, pressed, mouse } from './input.js';
+import { initInput, endFrame, pollGamepad, keys, pressed, mouse, captureMouse } from './input.js';
 import { buildCity, resolveCircle, pointBlocked, groundHeight, blockStart, BLOCK, HALF, N } from './city.js';
 import { createCharacter, animateWalk, animateIdle, animateLand, resetArticulation, updateCharacterDetail, updateCharacterAnimation, CHARACTERS } from './characters.js';
 import { makeVehicle, physStep, separateCars, darkenCar, updateVehicleDetail } from './car.js';
@@ -613,7 +613,7 @@ initAccessibility(world, {
 });
 initReplay(world, camera, renderer, {
   onEnter: () => { gameState = 'replay'; showTouchUI(false); document.exitPointerLock?.(); },
-  onExit: () => { gameState = 'play'; showTouchUI(isTouch); if (!isTouch) renderer.domElement.requestPointerLock?.(); },
+  onExit: () => { gameState = 'play'; showTouchUI(isTouch); grabPointer(); },
 });
 initCheats({
   cash: () => { world.money += 10000; },
@@ -721,6 +721,21 @@ initMenu({
   },
 });
 
+// Capture the mouse for looking around (raw input unless turned off in the
+// pause menu). Browsers refuse a re-capture for about a second after Esc, so
+// a quick Resume can come back without the mouse; any click on the game then
+// captures it again instead of leaving the camera stuck.
+function grabPointer() {
+  if (!isTouch) captureMouse(renderer.domElement, world.settings.rawMouse !== false);
+}
+window.addEventListener('mousedown', (e) => {
+  if (isTouch || document.pointerLockElement || gameState !== 'play') return;
+  if (world.bankUiOpen || world.vehicleUiOpen || world.storyUiOpen) return;
+  if (e.target?.closest?.('button,input,select,textarea,a,label,[role=button]')) return;
+  e.stopImmediatePropagation(); // this click only grabs the mouse, it doesn't fire
+  grabPointer();
+}, true);
+
 function pauseGame() {
   if (gameState !== 'play') return;
   gameState = 'pause';
@@ -752,7 +767,7 @@ function resumeGame() {
   closeMenu();
   gameState = 'play';
   showTouchUI(isTouch);
-  if (!isTouch) renderer.domElement.requestPointerLock?.();
+  grabPointer();
 }
 
 function openBigMap() {
@@ -767,7 +782,7 @@ function closeBigMap() {
   closeMap();
   gameState = 'play';
   showTouchUI(isTouch);
-  if (!isTouch) renderer.domElement.requestPointerLock?.();
+  grabPointer();
 }
 
 // ---------- blackjack at the Lucky 7 ----------
@@ -782,7 +797,7 @@ function enterCards() {
 function leaveCards() {
   gameState = 'play';
   showTouchUI(isTouch);
-  if (!isTouch) renderer.domElement.requestPointerLock?.();
+  grabPointer();
 }
 
 // ---------- photo mode ----------
@@ -798,7 +813,7 @@ function enterPhotoMode() {
   document.getElementById('hud').style.display = 'none';
   showTouchUI(false);
   showToast('');
-  if (!isTouch) renderer.domElement.requestPointerLock?.();
+  grabPointer();
 }
 
 function exitPhotoMode() {
@@ -812,8 +827,9 @@ function exitPhotoMode() {
 const _photoDir = new THREE.Vector3();
 
 function updatePhoto(dt) {
-  camYaw -= mouse.dx * 0.0024;
-  camPitch = Math.max(-1.4, Math.min(1.4, camPitch + mouse.dy * 0.0018));
+  const look = LOOK_RATE * (world.settings.sens || 1);
+  camYaw -= mouse.dx * look;
+  camPitch = Math.max(-1.4, Math.min(1.4, camPitch + mouse.dy * look * (world.settings.invertY ? -1 : 1)));
   _photoDir.set(Math.sin(camYaw) * Math.cos(camPitch), Math.sin(camPitch), Math.cos(camYaw) * Math.cos(camPitch));
   const spd = keys['ShiftLeft'] ? 60 : 24;
   if (keys['KeyW']) photoPos.addScaledVector(_photoDir, spd * dt);
@@ -1014,12 +1030,12 @@ campaignService=initCampaign(world,save,{
 world.campaignService=campaignService;
 if(campaignService.status().active)campaignService.requestVehicle();
 const campaignCast=createCampaignCast(world);world.campaignCast=campaignCast;
-const storyPresentation=createCampaignPresentation(world,{camera,resumePointer:()=>{if(!isTouch&&gameState==='play')renderer.domElement.requestPointerLock?.()?.catch?.(()=>{});}});
+const storyPresentation=createCampaignPresentation(world,{camera,resumePointer:()=>{if(gameState==='play')grabPointer();}});
 world.storyPresentation=storyPresentation;
 
 const vehiclePanel = initVehiclePanel(world, vehicleServices, {
   isPlaying: () => gameState === 'play',
-  resumePointer: () => { if (!isTouch) renderer.domElement.requestPointerLock?.()?.catch?.(() => {}); },
+  resumePointer: () => grabPointer(),
 });
 
 // player-car headlights at night (persistent light => no shader recompiles)
@@ -1149,6 +1165,8 @@ function updatePickups(dt) {
 
 let camYaw = 0;
 let camPitch = 0.12;
+const LOOK_RATE = 0.0024; // radians of turn per mouse count at sensitivity 1
+let freeLookT = 0;
 const camPos = new THREE.Vector3(0, 4, -10);
 const _camTarget = new THREE.Vector3();
 const _camDesired = new THREE.Vector3();
@@ -1175,10 +1193,21 @@ function onFootView() { return !player.inCar && !player.inHeli && !player.inBoat
 function aiming() { return !!(keys.ControlLeft || keys.ControlRight || mouse.down || recoilT > 0); }
 
 function updateCamera(dt) {
+  // One turn rate for both axes, so a diagonal hand movement turns the view
+  // diagonally. Zoomed in (sniper scope), the rate drops with the field of
+  // view, so the world slides under the crosshair at the same speed as your
+  // hand, the way a real scope feels.
   const sens = world.settings.sens || 1;
   const inv = world.settings.invertY ? -1 : 1;
-  camYaw -= mouse.dx * 0.0024 * sens;
-  camPitch = Math.max(onFootView() ? -1.35 : -0.35, Math.min(onFootView() ? 1.35 : 0.75, camPitch + mouse.dy * 0.0018 * sens * inv));
+  const zoom = Math.min(1, Math.tan(camera.fov * Math.PI / 360) / Math.tan(35 * Math.PI / 180));
+  const look = LOOK_RATE * sens * zoom;
+  camYaw -= mouse.dx * look;
+  camPitch = Math.max(onFootView() ? -1.35 : -0.35, Math.min(onFootView() ? 1.35 : 0.75, camPitch + mouse.dy * look * inv));
+  // In a vehicle the camera swings back behind it, but not while you are
+  // looking around: it waits until the mouse has been still for a moment.
+  if (Math.abs(mouse.dx) + Math.abs(mouse.dy) > 2) freeLookT = 1.2;
+  else freeLookT = Math.max(0, freeLookT - dt);
+  const follow = freeLookT > 0 ? 0 : 1;
   if (keys['ArrowLeft']) camYaw += 1.8 * dt;
   if (keys['ArrowRight']) camYaw -= 1.8 * dt;
 
@@ -1190,7 +1219,7 @@ function updateCamera(dt) {
     let diff = p.heading - camYaw;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    camYaw += diff * Math.min(1, 2.4 * dt);
+    camYaw += diff * Math.min(1, 2.4 * dt) * follow;
 
     _camDesired.set(
       p.pos.x - Math.sin(camYaw) * 19,
@@ -1207,7 +1236,7 @@ function updateCamera(dt) {
     let diff = h.heading - camYaw;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    camYaw += diff * Math.min(1, 2.6 * dt);
+    camYaw += diff * Math.min(1, 2.6 * dt) * follow;
 
     _camDesired.set(
       h.pos.x - Math.sin(camYaw) * 17,
@@ -1224,7 +1253,7 @@ function updateCamera(dt) {
     let diff = b.heading - camYaw;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    camYaw += diff * Math.min(1, 2.8 * dt);
+    camYaw += diff * Math.min(1, 2.8 * dt) * follow;
 
     _camDesired.set(
       b.pos.x - Math.sin(camYaw) * 12,
@@ -1241,7 +1270,7 @@ function updateCamera(dt) {
     let diff = car.heading - camYaw;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
-    camYaw += diff * Math.min(1, 3.2 * dt);
+    camYaw += diff * Math.min(1, 3.2 * dt) * follow;
 
     _camDesired.set(
       car.pos.x - Math.sin(camYaw) * 9.5,
@@ -3255,7 +3284,7 @@ function beginPlay(lockPointer=true) {
     gameState = 'play';
     showStickyKeysHintOnce();
   }
-  if (!isTouch&&lockPointer) renderer.domElement.requestPointerLock?.()?.catch?.(()=>{});
+  if (!isTouch&&lockPointer) grabPointer();
   else if(isTouch) {
     goFullscreen(); // phones: immersive landscape
     keepAwake();    // and no screen dimming mid-chase
@@ -3846,8 +3875,8 @@ const _introTo = new THREE.Vector3();
 function animate() {
   requestAnimationFrame(animate);
   vehiclePanel.update();
-  pollGamepad();
   const frameSeconds=clock.getDelta();
+  pollGamepad(frameSeconds);
   resolution.sample(frameSeconds,gameState==='play'&&!world.bankUiOpen&&!world.vehicleUiOpen);
   let dt = Math.min(frameSeconds, 0.05);
   updatePerf(dt); // rolling frame-time governor + FPS meter (real, unscaled dt)
@@ -3948,6 +3977,7 @@ window.__debug = {
   getCamYaw: () => camYaw,
   setCamYaw: (v) => { camYaw = v; },
   setCamPitch: (v) => { camPitch = v; },
+  getCam: () => ({ yaw: camYaw, pitch: camPitch, fov: camera.fov }),
   getState: () => gameState,
   setClock: (h) => { world.clock = h; },
   races: racesState,

@@ -14,6 +14,7 @@ export const runtimeProfile = {
     "volume": 1,
     "sens": 1,
     "invertY": false,
+    "rawMouse": true,
     "lowGfx": false,
     "ao": false
   },

@@ -103,6 +103,11 @@ export function initMenu(h) {
   const inv = document.createElement('input');
   inv.type = 'checkbox'; inv.checked = !!s.invertY;
   inv.onchange = () => { s.invertY = inv.checked; hooks.onSettings(); };
+  // raw input skips the operating system's mouse acceleration; it applies the
+  // next time the game captures the mouse (on Resume)
+  const raw = document.createElement('input');
+  raw.type = 'checkbox'; raw.checked = s.rawMouse !== false;
+  raw.onchange = () => { s.rawMouse = raw.checked; hooks.onSettings(); };
   const qual = document.createElement('select');qual.id = 'graphics-quality';
   for (const value of ['auto','low','medium','high']) {
     const option=document.createElement('option');option.value=value;option.textContent=value[0].toUpperCase()+value.slice(1);qual.appendChild(option);
@@ -155,6 +160,7 @@ export function initMenu(h) {
     row('VOLUME', vol),
     row('SENSITIVITY', sens),
     row('INVERT Y', inv),
+    row('RAW MOUSE INPUT (NO ACCELERATION)', raw),
     row('GRAPHICS QUALITY (RELOAD)', qual),
     row('ACTIVE RADIUS', radiusLabel),
     row('3D RENDER BUDGET', resolution),
