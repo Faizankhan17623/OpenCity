@@ -316,17 +316,25 @@ function stepMark(world, P, dt, speed) {
       if (!blocked(world, x + ix * k, z + iz * k, 0.3)) { x += ix * k; z += iz * k; break; }
     }
   }
-  // step inward (toward the buildings, away from the road) round other activities' props
+  // give other activities' props a wide berth: step sideways away from the
+  // site, staying on this block's sidewalk band (never onto the road)
   for (const t of world.city.activitySites || []) {
     const dd = Math.hypot(t.x - x, t.z - z), need = t.radius + 0.8 - dd;
     if (need <= 0) continue;
-    const ix = Math.sign(r.cx - x) * Math.abs(q.dz), iz = Math.sign(r.cz - z) * Math.abs(q.dx);
-    const k = Math.min(2.6, need + 0.2);
-    if (!blocked(world, x + ix * k, z + iz * k, 0.3)) { x += ix * k; z += iz * k; }
+    const alongX = q.dz === 0; // walking along x: sidestep in z
+    const cur = alongX ? z : x, site = alongX ? t.z : t.x, mid = alongX ? r.cz : r.cx;
+    const lo = mid - BLOCK / 2 + 0.6, hi = mid + BLOCK / 2 - 0.6;
+    let to = cur + Math.sign(cur - site || 1) * Math.min(2.6, need + 0.2);
+    to = Math.max(lo, Math.min(hi, to));
+    const nx = alongX ? x : to, nz = alongX ? to : z;
+    if (!blocked(world, nx, nz, 0.3)) { x = nx; z = nz; }
   }
   const g = P.mark.group;
-  g.position.x += (x - g.position.x) * Math.min(1, dt * 8);
-  g.position.z += (z - g.position.z) * Math.min(1, dt * 8);
+  const ox = g.position.x, oz = g.position.z;
+  g.position.x += (x - ox) * Math.min(1, dt * 8);
+  g.position.z += (z - oz) * Math.min(1, dt * 8);
+  // the smoothing must never cut a corner through something solid
+  if (blocked(world, g.position.x, g.position.z, 0.05)) { g.position.x = x; g.position.z = z; }
   return Math.atan2(q.dx * P.dir, q.dz * P.dir);
 }
 
