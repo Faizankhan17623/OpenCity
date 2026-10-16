@@ -143,9 +143,11 @@ export function updatePinball(world, dt, keys, pressed) {
   const d = Math.hypot(player.pos.x - pb.pos.x, player.pos.z - pb.pos.z);
 
   if (pb.playing) {
-    // W/S walks away; A/D are the flippers, so undo the on-foot strafe
-    if (d > 4 || !onFoot || keys['KeyW'] || keys['KeyS']) { finish(world); return; }
-    player.pos.x = pb.standX; player.pos.z = pb.standZ;
+    // E ends the game; A/D are the flippers, so undo the on-foot strafe. (W/S used
+    // to quit, but a phone joystick pushed sideways for a flipper leaks a little
+    // W or S and ended the game by accident.)
+    if (d > 4 || !onFoot || pressed['KeyE']) { finish(world); return; }
+    player.pos.x = pb.standX; player.pos.z = pb.standZ; // held at the cabinet, W/S included
     player.vel.x = 0; player.vel.z = 0;
     const hud = ensureHud(world);
     const step = Math.min(dt, 0.05);
@@ -190,7 +192,7 @@ export function updatePinball(world, dt, keys, pressed) {
       hud.ball.style.top = (pb.by - 7) + 'px';
     }
     hud.score.textContent = `SCORE ${pb.score}  ·  BALLS ${pb.ballsLeft}`;
-    world.pinballHint = `PINBALL — ${pb.ballsLeft} balls · A/D flippers · W/S walk away`;
+    world.pinballHint = `PINBALL — ${pb.ballsLeft} balls · A/D flippers · <b>E</b> to stop`;
     return;
   }
 

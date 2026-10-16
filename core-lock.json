@@ -1,7 +1,7 @@
 {
-  "version": "0.3.36-local",
-  "sha256": "98979584d071b886f0a89d5fb650594e28b523ab266ca65fed51ee4a25bb6caf",
-  "source": "Basic main snapshot after adding a rooftop billboard-hacking run from a netrunner stand by spawn; main.js wiring identical across both editions; shared edition compatibility validated",
+  "version": "0.3.37-local",
+  "sha256": "0beafb18a8f13b7e746b75f4e68f38adbe59ef49ece2a941f787a6324c2e424a",
+  "source": "Basic main snapshot after touch fixes: the in-car radio no longer covers E, the kiosk digit row covers 1-6 and 0, and pinball quits on E instead of W/S; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -162,7 +162,7 @@
     "js/perks.js": "bee8562b2f419544421a5da0b1142b638347cbcb2dffd2b6459e9117669e5325",
     "js/photobounty.js": "c8d5ba892e8de9447133a9852ef5f07f1011016feef21fe2ccbb785f52e1f6aa",
     "js/pigeons.js": "17ed5f962da6c6809ca4a8df7510d8b58c015775a29b60e7407852d58b56dbaf",
-    "js/pinball.js": "6ed30b61ea7e1b3ea9ca0f2fe57516c9aee898a82fe9e06afb6c5fc5e53835ed",
+    "js/pinball.js": "2aa68bb8a851016f5e392a1d77c6ef01a50cf2477e9b3c80d533e304d08f3c1c",
     "js/pinkslip.js": "00318cd9e9541fa5def539b4a91278b989c07d5b25101b79078d618ecc8a77f2",
     "js/pizza.js": "923c05c675bf822095b9be4c55133db4d06c8274df6a393890041b93c0f7ae28",
     "js/plane.js": "3feb40abb898f9cfecae39f79c8661d41852528b21dbb3de038fb6cdca0dbb5d",
@@ -210,7 +210,7 @@
     "js/tattoo.js": "87862de493d3ec0dbbad883850ea785344c44c947dcc7649644f1b8e447bb76e",
     "js/taxi.js": "910480779245e1433b73a15a9de0b8a0e0223e624fe774bdc99f965bb2f7fac6",
     "js/textures.js": "d5b7c849f8c3264ea70476421cf25c3e4c9f619febbc462022422c24682e2325",
-    "js/touch.js": "4aa012c1d9e643d685b3519f9cbbfda2e39f835aaa1786de8194b04c9513ad8f",
+    "js/touch.js": "e45406e9568018f11b607b328013d668580b32831a4f751f069bb4640ae81b31",
     "js/tournament.js": "373d77bc806beba9428cbb0aafee3499139d6289b83d4a158f7e8cb3a130ae0f",
     "js/towtruck.js": "57fe3767257b6d8b267d140bdf33abbfd9a30375629b14dc9483da3f48e19541",
     "js/train.js": "14b42f53c4c0b1e78e75b44a57564e4982f1f45148b91b885a80e4bbeb2a9676",
