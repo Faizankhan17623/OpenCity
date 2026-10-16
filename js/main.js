@@ -2674,7 +2674,7 @@ function updateBoating(dt) {
     showToast(RADIO_STATIONS[world.radioSt]);
   }
 
-  if (pressed['KeyE']) {
+  if (pressed['KeyE'] && !world.carActionE) { // an activity offering E from the boat claims it
     if (sp < 4) exitBoat();
     else showToast('Slow down to hop off!');
   }
