@@ -116,7 +116,7 @@ On the start screen, pick a save slot and a character (**WEAVER** balanced,
 | **Lifeguard rescue** | Tower on the beach; swim or boat out, tow swimmers to shore |
 | **Cat rescue** | Lost-pets board by spawn; fetch a cat stranded on a rooftop |
 | **Billboard hacker** | NETRUNNER stand by spawn; hack four rooftop billboards on one clock |
-| **Taco Loco food truck** | Taco truck by spawn; serve a 75-second lunch rush with keys 1–4, tips for speed |
+| **Taco Loco food truck** | Taco truck (marked on the map); serve a 75-second lunch rush with keys 1–4, tips for speed |
 | **Bomb squad** | A device is planted somewhere in the city; reach it and hold E to defuse |
 | **Ambulance, fire, cop career, vigilante, bounty hunting** | Classic city jobs |
 
@@ -133,6 +133,17 @@ On the start screen, pick a save slot and a character (**WEAVER** balanced,
 - **Races:** street circuits, harbor boat races, a rooftop swing trial and a
   racing championship across the circuits.
 - **Beach:** a metal-detector treasure hunt and fishing.
+- **Street games:** the Shell Game hustler (follow the ball, stakes double
+  per win), Arm Wrestling at the Iron Elbow (time E to the green, five
+  opponents), a High Noon quick-draw duel, a Trivia Kiosk (5 questions, many
+  about the city itself), Four in a Row against a park old-timer and Mole
+  Mania whack-a-mole.
+- **Park and plaza:** a hedge maze with real walls (no going over the top), a
+  wishing fountain (one wish a day: luck, health, calm or fortune), a living
+  statue act (don't move a muscle, the crowd tips) and an observatory
+  telescope for finding constellations after dark.
+- **Finding them:** these newer sites appear on the minimap and the full map
+  (**M**) with their names.
 - **Shops and services:** barber, tattoo parlor, gym, wardrobe suits, car wash,
   dealership, garage, law office, armor surplus and bodyguards for hire.
 

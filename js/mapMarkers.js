@@ -16,6 +16,7 @@ export function collectMapMarkers(world){
  for(const s of world.gas?.stations||[])add(s.pos,'pump','Petrol');
  for(const v of world.ownedVehicleInstances?.values?.()||[])if(!v.dead)add(v.pos,'owned','Owned vehicle');
  for(const s of world.shops||[])add(s.pos,'contact','Shop','activities');
+ for(const a of world.activityMarkers||[])add(a.pos,'contact',a.label,'activities'); // named activity sites
  for(const s of world.mapRamps||[])add(s.pos,'hazard','Stunt','activities');
  for(const s of world.mapSkulls||[])add(s.pos,'hazard','Challenge','activities');
  add(world.medic?.hospital,'shelter','Hospital');add(world.armsdealer?.pos,'contact','Arms dealer');
