@@ -2,7 +2,7 @@
 // Socket metadata keeps service anchors stable before visual models finish streaming.
 export const worldAssets = {
   "oc_apartments_01": {
-    "url": "/assets/buildings/oc_apartments_01.glb",
+    "url": "assets/buildings/oc_apartments_01.glb",
     "bounds": {
       "min": [
         -9.651,
@@ -79,7 +79,7 @@ export const worldAssets = {
     }
   },
   "oc_bank_harbour_mutual_01": {
-    "url": "/assets/buildings/oc_bank_harbour_mutual_01.glb",
+    "url": "assets/buildings/oc_bank_harbour_mutual_01.glb",
     "bounds": {
       "min": [
         -8.15,
@@ -293,7 +293,7 @@ export const worldAssets = {
     }
   },
   "oc_hotel_flamingo_01": {
-    "url": "/assets/buildings/oc_hotel_flamingo_01.glb",
+    "url": "assets/buildings/oc_hotel_flamingo_01.glb",
     "bounds": {
       "min": [
         -14,
@@ -401,7 +401,7 @@ export const worldAssets = {
     }
   },
   "oc_mendez_garage_01": {
-    "url": "/assets/buildings/oc_mendez_garage_01.glb",
+    "url": "assets/buildings/oc_mendez_garage_01.glb",
     "bounds": {
       "min": [
         -11.351,
@@ -563,7 +563,7 @@ export const worldAssets = {
     }
   },
   "oc_shop_row_01": {
-    "url": "/assets/buildings/oc_shop_row_01.glb",
+    "url": "assets/buildings/oc_shop_row_01.glb",
     "bounds": {
       "min": [
         -21,
@@ -658,7 +658,7 @@ export const worldAssets = {
     }
   },
   "oc_bench_01": {
-    "url": "/assets/props/oc_bench_01.glb",
+    "url": "assets/props/oc_bench_01.glb",
     "bounds": {
       "min": [
         -0.9,
@@ -692,7 +692,7 @@ export const worldAssets = {
     }
   },
   "oc_bin_01": {
-    "url": "/assets/props/oc_bin_01.glb",
+    "url": "assets/props/oc_bin_01.glb",
     "bounds": {
       "min": [
         -0.3,
@@ -726,7 +726,7 @@ export const worldAssets = {
     }
   },
   "oc_bollard_01": {
-    "url": "/assets/props/oc_bollard_01.glb",
+    "url": "assets/props/oc_bollard_01.glb",
     "bounds": {
       "min": [
         -0.095,
@@ -760,7 +760,7 @@ export const worldAssets = {
     }
   },
   "oc_fountain_01": {
-    "url": "/assets/props/oc_fountain_01.glb",
+    "url": "assets/props/oc_fountain_01.glb",
     "bounds": {
       "min": [
         -2.08,
@@ -846,7 +846,7 @@ export const worldAssets = {
     }
   },
   "oc_kerb_01": {
-    "url": "/assets/props/oc_kerb_01.glb",
+    "url": "assets/props/oc_kerb_01.glb",
     "bounds": {
       "min": [
         -1.5,
@@ -880,7 +880,7 @@ export const worldAssets = {
     }
   },
   "oc_lamp_01": {
-    "url": "/assets/props/oc_lamp_01.glb",
+    "url": "assets/props/oc_lamp_01.glb",
     "bounds": {
       "min": [
         -0.26,
@@ -914,7 +914,7 @@ export const worldAssets = {
     }
   },
   "oc_palm_01": {
-    "url": "/assets/props/oc_palm_01.glb",
+    "url": "assets/props/oc_palm_01.glb",
     "bounds": {
       "min": [
         -1.297,
@@ -948,7 +948,7 @@ export const worldAssets = {
     }
   },
   "oc_parking_01": {
-    "url": "/assets/props/oc_parking_01.glb",
+    "url": "assets/props/oc_parking_01.glb",
     "bounds": {
       "min": [
         -13.3,
@@ -1161,7 +1161,7 @@ export const worldAssets = {
     }
   },
   "oc_petrol_forecourt_01": {
-    "url": "/assets/props/oc_petrol_forecourt_01.glb",
+    "url": "assets/props/oc_petrol_forecourt_01.glb",
     "bounds": {
       "min": [
         -13.051,
@@ -1297,7 +1297,7 @@ export const worldAssets = {
     }
   },
   "oc_plaza_01": {
-    "url": "/assets/props/oc_plaza_01.glb",
+    "url": "assets/props/oc_plaza_01.glb",
     "bounds": {
       "min": [
         -13,
@@ -1424,7 +1424,7 @@ export const worldAssets = {
     }
   },
   "oc_road_crossing_01": {
-    "url": "/assets/props/oc_road_crossing_01.glb",
+    "url": "assets/props/oc_road_crossing_01.glb",
     "bounds": {
       "min": [
         -9,
@@ -1498,7 +1498,7 @@ export const worldAssets = {
     }
   },
   "oc_road_junction_01": {
-    "url": "/assets/props/oc_road_junction_01.glb",
+    "url": "assets/props/oc_road_junction_01.glb",
     "bounds": {
       "min": [
         -9,
@@ -1598,7 +1598,7 @@ export const worldAssets = {
     }
   },
   "oc_road_straight_01": {
-    "url": "/assets/props/oc_road_straight_01.glb",
+    "url": "assets/props/oc_road_straight_01.glb",
     "bounds": {
       "min": [
         -9,
@@ -1667,7 +1667,7 @@ export const worldAssets = {
     }
   },
   "oc_road_tjunction_01": {
-    "url": "/assets/props/oc_road_tjunction_01.glb",
+    "url": "assets/props/oc_road_tjunction_01.glb",
     "bounds": {
       "min": [
         -9,
@@ -1775,7 +1775,7 @@ export const worldAssets = {
     }
   },
   "oc_sign_01": {
-    "url": "/assets/props/oc_sign_01.glb",
+    "url": "assets/props/oc_sign_01.glb",
     "bounds": {
       "min": [
         -0.42,
