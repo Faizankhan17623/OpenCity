@@ -113,7 +113,7 @@ export function initVehiclePanel(world, api, hooks) {
       el('p',status.message,content);
       if(world.campaignReplay)el('p','This memory uses temporary progress. Finishing or leaving reloads your city from the snapshot taken before the replay.',content);
       if(stage){
-        const plate=el('img','',content);plate.src=chapterArt(campaignArc(status.mission));plate.alt=status.mission.chapter;plate.style.cssText='width:100%;max-height:150px;object-fit:cover;border-radius:6px';plate.onerror=()=>plate.remove();
+        const art=chapterArt(campaignArc(status.mission));if(art){const plate=el('img','',content);plate.src=art;plate.alt=status.mission.chapter;plate.style.cssText='width:100%;max-height:150px;object-fit:cover;border-radius:6px';plate.onerror=()=>plate.remove();}
         el('h3',status.mission.id+' · '+status.mission.title,content);
         el('p','Step '+(stage.index+1)+'/'+stage.total+' · '+stage.label,content);
         el('p',stage.ready?'Ready at destination':stage.reason+' '+Math.round(stage.distance)+' m',content);

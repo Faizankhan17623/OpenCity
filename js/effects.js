@@ -55,7 +55,13 @@ export function initEffects(s) {
   setTimeout(() => { scene.remove(g); for (const m of warm) { m.geometry.dispose?.(); } }, 0);
 }
 
+// A shot from an actor with a broken transform can hand us NaN endpoints;
+// the line would be invisible anyway, and its geometry trips three.js's
+// "computeBoundingSphere(): Computed radius is NaN" warning, so skip it.
+const finite = (v) => !!v && Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+
 export function addTracer(a, b) {
+  if (!finite(a) || !finite(b)) return;
   const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
   const mesh = new THREE.Line(geo, mat(tracerTemplate));
   scene.add(mesh);
@@ -80,6 +86,7 @@ export function addRing(pos, color = 0xffcc88) {
 
 // burst of glowing sparks with gravity (single Points draw call)
 export function addSparks(pos, count = 12, color = 0xffc96a) {
+  if (!finite(pos)) return;
   const geo = new THREE.BufferGeometry();
   const p = new Float32Array(count * 3);
   const vels = [];

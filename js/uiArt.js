@@ -1,4 +1,8 @@
 // Local presentation URLs. Source images stay on the art drive.
+import { runtime } from './runtime.js';
+// An edition that ships without the art (presentationArt: false) never requests
+// it, so the console stays free of 404s; other editions are unaffected.
+export const presentationArt = runtime.profile.presentationArt !== false;
 export const loadingHints=[
   "Vehicles burn petrol. Run the tank dry and you stop where you are.",
   "A full tank will not fix a failed engine.",
@@ -18,5 +22,5 @@ export const loadingHints=[
   "Nitro is bought at the station bay, from your bank balance."
 ];
 const portraits=new Set(["kamila","celia","dara","dev","imani","kai","leela","mercer","nora","rook","rosa","sal","tessa","ada","amel","anja","bea","bellamy","duarte_sr","ellis","ewan","harlan","ines","irene","ivo","jo","joel","june","kells","leon","luz","mara","milo","mira","niko","oren","owen","paz","pia","rina","sef","suri","tomas","vale","vaughn"]);
-export function portraitUrl(name){let key=String(name||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_');if(key==='mother')key='kamila';if(!portraits.has(key))key=key.split('_').find(part=>portraits.has(part))||key;return portraits.has(key)?'/assets/ui/portraits/portrait_'+key+'_96.webp':null;}
-export const chapterArt=(arc,revealed=false)=>'/assets/ui/loading/chapter_'+Math.max(1,Math.min(6,arc|0))+'_'+(revealed?'revealed':'locked')+'.webp';
+export function portraitUrl(name){if(!presentationArt)return null;let key=String(name||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_');if(key==='mother')key='kamila';if(!portraits.has(key))key=key.split('_').find(part=>portraits.has(part))||key;return portraits.has(key)?'/assets/ui/portraits/portrait_'+key+'_96.webp':null;}
+export const chapterArt=(arc,revealed=false)=>!presentationArt?null:'/assets/ui/loading/chapter_'+Math.max(1,Math.min(6,arc|0))+'_'+(revealed?'revealed':'locked')+'.webp';
