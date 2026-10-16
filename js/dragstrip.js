@@ -140,7 +140,7 @@ export function initDragStrip(scene, world, save) {
     launched: false, runT: 0, speed: 0, dist: 0, gear: 1, rpm: 0, shiftT: 0, bogT: 0, limT: 0, grade: '',
     shiftZone: SHIFT_ZONE, perfectZone: PERFECT, redline: 1,
     reaction: null, et: null, trap: null, result: null,
-    rv: { state: 'hidden', s: 0, v: 0, react: 0, et: 13.5, color: '#d8d8e0' },
+    rv: { state: 'hidden', t: 0, s: 0, v: 0, react: 0, et: 13.5 },
     cooldown: 0, resultT: 0, offerPrev: false,
     hud: null, shownLights: null,
     wins: save?.dragWins ?? 0,
@@ -162,13 +162,13 @@ function closeStrip(world, on) {
 function clearStrip(world) {
   const D = world.dragStrip;
   const x1 = D.x0 - 10, x2 = D.x0 + STRIP + 150;
-  for (const list of [world.traffic, world.parked, world.cops]) {
+  for (const list of [world.traffic, world.parked]) { // the two lists main collides the player with
     for (const v of list || []) {
       if (v === D.car || v.dead && list !== world.parked) continue;
       if (v.pos.x < x1 || v.pos.x > x2 || Math.abs(v.pos.z - D.zr) > 7) continue;
       if (v.ai && v.ai.fx) { v.pos.x = D.x0 + STRIP + 175; continue; }
       if (v.ai && v.ai.fz) continue;           // crossing at a junction, gone in a moment
-      if (Math.abs(v.pos.z - D.zr) < 7.2) v.pos.z = D.zr + (v.pos.z < D.zr ? -7.2 : 7.2);
+      if (Math.abs(v.pos.z - D.zr) < 7.2) v.pos.z = D.zr + (v.pos.z < D.zr ? -7.3 : 7.3);
     }
   }
 }
@@ -271,8 +271,9 @@ function renderHud(world) {
 }
 
 function setTreeLamps(D) {
-  if (D.shownLights === D.lights) return;
-  D.shownLights = D.lights;
+  const key = `${D.lights}|${D.state}|${D.launched}`;
+  if (D.shownLights === key) return;
+  D.shownLights = key;
   for (const [key, bulbs] of Object.entries(D.lamps)) {
     const kind = key.replace(/\d/, '');
     const on = key === 'stage' ? D.state === 'staged' || D.state === 'run' && !D.launched : lit(D, key);
@@ -301,7 +302,7 @@ function stageRace(world, car) {
   D.shiftT = 0; D.bogT = 0; D.limT = 0; D.grade = 'Watch the tree — E on GREEN';
   D.reaction = null; D.et = null; D.trap = null; D.result = null;
   const rv = D.rv;
-  rv.state = 'staged'; rv.s = 0; rv.v = 0;
+  rv.state = 'staged'; rv.t = 0; rv.s = 0; rv.v = 0;
   rv.react = 0.17 + Math.random() * 0.15;
   rv.et = rivalET(D.wins);
   const r = D.rival;
@@ -322,7 +323,8 @@ function updateRival(world, dt) {
   const D = world.dragStrip, rv = D.rv, r = D.rival;
   if (rv.state === 'hidden') return;
   if (rv.state === 'run') {
-    const rt = D.clock - rv.react;
+    rv.t += dt;                               // its own clock: it keeps racing after you finish
+    const rt = rv.t - rv.react;
     if (rt > 0) {
       const u = Math.min(1, rt / rv.et);
       rv.s = STRIP * Math.pow(u, 1.5);
@@ -356,9 +358,9 @@ function shift(D) {
     D.bogT = 0.35 + 1.6 * (SHIFT_ZONE[0] - r);
     D.shiftT = 0.15;
     D.grade = 'EARLY SHIFT — bogged';
-  } else if (D.limT > 0.05) {
+  } else if (r > SHIFT_ZONE[1] || D.limT > 0.05) {
     D.shiftT = 0.15;
-    D.grade = `LATE SHIFT — ${D.limT.toFixed(2)}s on the limiter`;
+    D.grade = D.limT > 0.05 ? `LATE SHIFT — ${D.limT.toFixed(2)}s on the limiter` : 'LATE SHIFT';
   } else if (r >= PERFECT[0] && r <= PERFECT[1]) {
     D.shiftT = 0.05;
     D.grade = 'PERFECT SHIFT';
@@ -494,6 +496,7 @@ export function updateDragStrip(world, dt, keys, pressed) {
       D.lights = 'green';
       D.clock = D.t - D.greenAt;
       D.rv.state = 'run';
+      D.rv.t = D.clock;
       D.grade = 'GREEN — GO!';
     }
     world.dragStripHint = 'DRAG STRIP — watch the tree… press <b>E</b> on <b>GREEN</b>';
@@ -551,8 +554,7 @@ export function updateDragStrip(world, dt, keys, pressed) {
       endRace(world, null);
     }
     world.dragStripHint = D.gear < 4 ? `GEAR <b>${D.gear}</b> — press <b>E</b> in the green zone` : 'TOP GEAR — hold on!';
-    holdCar(D, car);
-    for (const w of car.wheels || []) w.rotation.x += (D.speed * dt) / 0.36;
+    holdCar(D, car);                          // physStep spins the wheels from the vel we set
     renderHud(world);
     return;
   }

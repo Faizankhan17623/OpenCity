@@ -27,7 +27,7 @@ const PASS = 70;
 const LIMIT_MPH = 30;          // lesson 3 posted limit (HUD speed = m/s * 2.4)
 const MPH = 2.4;
 const CONES = 6;
-const CONE_GAP = 10;
+const CONE_GAP = 9;          // 6 cones span 45 m: fits between junctions (56 m clear)
 const CONE_HIT = 1.25;         // car centreline within ~1 m of a cone's edge topples it
 const SPEED_SECTION = 140;
 const TEST_TIME = 360;
@@ -117,7 +117,7 @@ function buildCourse(city, pos, yaw) {
       for (let k = 0; k < 300; k++) { const u = from + d * k; if (free(u, u + d * len)) return u; }
       return from;
     };
-    const s1 = findFree(uo + d * 12, CONE_GAP * (CONES - 1) + 8);
+    const s1 = findFree(uo + d * 12, CONE_GAP * (CONES - 1) + 8); // run-in + cones + run-out
     const cones = [];
     for (let i = 0; i < CONES; i++) cones.push({ u: s1 + d * (4 + CONE_GAP * i), side: (i % 2 ? 1 : -1) * Math.sign(laneW) });
     const slalomEnd = s1 + d * (4 + CONE_GAP * (CONES - 1) + 4);
