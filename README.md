@@ -117,6 +117,10 @@ On the start screen, pick a save slot and a character (**WEAVER** balanced,
 | **Cat rescue** | Lost-pets board by spawn; fetch a cat stranded on a rooftop |
 | **Billboard hacker** | NETRUNNER stand by spawn; hack four rooftop billboards on one clock |
 | **Taco Loco food truck** | Taco truck (marked on the map); serve a 75-second lunch rush with keys 1–4, tips for speed |
+| **Window Washer** | SKYLINE GLASS CO. tower; ride the gondola down, 1/2/3 picks a column, hold E to scrub, gusts swing you off |
+| **Parking Warden** | PARKING ENFORCEMENT booth; 120 s on foot to ticket 5 red-P cars (hold E) before their owners run out |
+| **Harbor Crane** | Container gantry on the seawall; press E to stop the trolley and land 8 swinging boxes on the barge |
+| **Crab pots** | Crab Shack on the shore; buy pots (1–3), drop them at yellow buoys from any boat, haul a couple of game hours later |
 | **Bomb squad** | A device is planted somewhere in the city; reach it and hold E to defuse |
 | **Ambulance, fire, cop career, vigilante, bounty hunting** | Classic city jobs |
 
@@ -142,6 +146,15 @@ On the start screen, pick a save slot and a character (**WEAVER** balanced,
   wishing fountain (one wish a day: luck, health, calm or fortune), a living
   statue act (don't move a muscle, the crowd tips) and an observatory
   telescope for finding constellations after dark.
+- **Driving:** the City Driving School test (cone slalom, stop box, speed
+  zone, three-point turn, parking; 70+ earns a licence) and a quarter-mile
+  Drag Strip on the south perimeter road (launch on green, shift in the green
+  rev zone).
+- **On the street:** the Pickpocket job from a hooded fence (stay behind the
+  mark, watch for the "?" before he glances back), Recycling (bag the cans on
+  the sidewalks, feed the RECYCLE machine), the Lucky Hooves OTB (read the form,
+  bet on a 25-second horse race) and the Vertical Limit climbing wall
+  (alternate 1 and 2 on the pulse).
 - **Finding them:** these newer sites appear on the minimap and the full map
   (**M**) with their names.
 - **Shops and services:** barber, tattoo parlor, gym, wardrobe suits, car wash,

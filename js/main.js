@@ -77,6 +77,16 @@ import { initFountain, updateFountain, fountainSave } from './fountain.js';
 import { initLivingStatue, updateLivingStatue, livingStatueSave } from './livingstatue.js';
 import { initHedgeMaze, updateHedgeMaze, hedgeMazeSave } from './hedgemaze.js';
 import { initStargazing, updateStargazing, stargazingSave } from './stargazing.js';
+import { initWindowWasher, updateWindowWasher, windowWasherSave } from './windowwasher.js';
+import { initClimbWall, updateClimbWall, climbWallSave } from './climbwall.js';
+import { initParkingWarden, updateParkingWarden, parkingWardenSave } from './parkingwarden.js';
+import { initPickpocket, updatePickpocket, pickpocketSave } from './pickpocket.js';
+import { initDrivingSchool, updateDrivingSchool, drivingSchoolSave } from './drivingschool.js';
+import { initDragStrip, updateDragStrip, dragStripSave } from './dragstrip.js';
+import { initHarborCrane, updateHarborCrane, harborCraneSave } from './harborcrane.js';
+import { initCrabPots, updateCrabPots, crabPotsSave } from './crabpots.js';
+import { initHorseBets, updateHorseBets, horseBetsSave } from './horsebets.js';
+import { initRecycling, updateRecycling, recyclingSave } from './recycling.js';
 import { initBarGames, updateBarGames, barGamesSave } from './bargames.js';
 import { initBowling, updateBowling, bowlingSave } from './bowling.js';
 import { initArchery, updateArchery, archerySave } from './archery.js';
@@ -622,12 +632,26 @@ initFountain(scene, world, save);
 initLivingStatue(scene, world, save);
 initHedgeMaze(scene, world, save);
 initStargazing(scene, world, save);
+initWindowWasher(scene, world, save);
+initClimbWall(scene, world, save);
+initParkingWarden(scene, world, save);
+initPickpocket(scene, world, save);
+initDrivingSchool(scene, world, save);
+initDragStrip(scene, world, save);
+initHarborCrane(scene, world, save);
+initCrabPots(scene, world, save);
+initHorseBets(scene, world, save);
+initRecycling(scene, world, save);
 // show the newer activity sites on the maps by name
 world.activityMarkers = [
   [world.foodTruck, 'Taco Loco'], [world.shellGame, 'Shell Game'], [world.armWrestle, 'Arm Wrestling'],
   [world.quickDraw, 'Quick-Draw Duel'], [world.trivia, 'Trivia Kiosk'], [world.connectFour, 'Four in a Row'],
   [world.whackAMole, 'Mole Mania'], [world.fountain, 'Wishing Fountain'], [world.livingStatue, 'Living Statue'],
   [world.hedgeMaze, 'Hedge Maze'], [world.stargazing, 'Observatory'],
+  [world.windowWasher, 'Window Washer'], [world.climbWall, 'Climbing Wall'], [world.parkingWarden, 'Parking Warden'],
+  [world.pickpocket, 'The Fence'], [world.drivingSchool, 'Driving School'], [world.dragStrip, 'Drag Strip'],
+  [world.harborCrane, 'Harbor Crane'], [world.crabPots, 'Crab Shack'], [world.horseBets, 'Lucky Hooves OTB'],
+  [world.recycling, 'Recycling'],
 ].filter(([site]) => site?.pos).map(([site, label]) => ({ pos: site.pos, label }));
 initScars(scene, world);
 initCloudSave(world);
@@ -923,6 +947,16 @@ function saveGame() {
       ...livingStatueSave(world),
       ...hedgeMazeSave(world),
       ...stargazingSave(world),
+      ...windowWasherSave(world),
+      ...climbWallSave(world),
+      ...parkingWardenSave(world),
+      ...pickpocketSave(world),
+      ...drivingSchoolSave(world),
+      ...dragStripSave(world),
+      ...harborCraneSave(world),
+      ...crabPotsSave(world),
+      ...horseBetsSave(world),
+      ...recyclingSave(world),
       ...barGamesSave(world),
       ...bowlingSave(world),
       ...archerySave(world),
@@ -1704,6 +1738,8 @@ function updateOnFoot(dt) {
   if (nearHeli) setHint('Press <b>E</b> to fly helicopter');
   else if (nearVeh) setHint('Press <b>E</b> to enter vehicle');
   else if (nearBoat) setHint('Press <b>E</b> to take the ' + (nearBoat.kind === 'jet' ? 'jet-ski' : 'boat'));
+  else if (world.windowWasherHint) setHint(world.windowWasherHint); // up on the gondola or the wall,
+  else if (world.climbWallHint) setHint(world.climbWallHint);       // other sites' prompts can't reach
   else if (world.finaleHint) setHint(world.finaleHint);
   else if (world.nemesisHint) setHint(world.nemesisHint);
   else if (world.zombieHint) setHint(world.zombieHint);
@@ -1735,6 +1771,14 @@ function updateOnFoot(dt) {
   else if (world.livingStatueHint) setHint(world.livingStatueHint);
   else if (world.hedgeMazeHint) setHint(world.hedgeMazeHint);
   else if (world.stargazingHint) setHint(world.stargazingHint);
+  else if (world.parkingWardenHint) setHint(world.parkingWardenHint);
+  else if (world.pickpocketHint) setHint(world.pickpocketHint);
+  else if (world.drivingSchoolHint) setHint(world.drivingSchoolHint);
+  else if (world.dragStripHint) setHint(world.dragStripHint);
+  else if (world.harborCraneHint) setHint(world.harborCraneHint);
+  else if (world.crabPotsHint) setHint(world.crabPotsHint);
+  else if (world.horseBetsHint) setHint(world.horseBetsHint);
+  else if (world.recyclingHint) setHint(world.recyclingHint);
   else if (world.barHint) setHint(world.barHint);
   else if (world.bowlingHint) setHint(world.bowlingHint);
   else if (world.archeryHint) setHint(world.archeryHint);
@@ -3628,6 +3672,16 @@ function update(dt) {
   updateLivingStatue(world, dt, keys, pressed);
   updateHedgeMaze(world, dt, keys, pressed);
   updateStargazing(world, dt, keys, pressed);
+  updateWindowWasher(world, dt, keys, pressed);
+  updateClimbWall(world, dt, keys, pressed);
+  updateParkingWarden(world, dt, keys, pressed);
+  updatePickpocket(world, dt, keys, pressed);
+  updateDrivingSchool(world, dt, keys, pressed, { enterCar });
+  updateDragStrip(world, dt, keys, pressed);
+  updateHarborCrane(world, dt, keys, pressed);
+  updateCrabPots(world, dt, keys, pressed);
+  updateHorseBets(world, dt, keys, pressed);
+  updateRecycling(world, dt, keys, pressed);
   updateBarGames(world, dt, keys, pressed);
   updateBowling(world, dt, keys, pressed);
   updateArchery(world, dt, keys, pressed);
@@ -3778,7 +3832,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.lifeguardHint || world.catHint || world.waterTaxiHint || world.billboardHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.lifeguardHint || world.catHint || world.crabPotsHint || world.waterTaxiHint || world.drivingSchoolHint || world.dragStripHint || world.billboardHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||
