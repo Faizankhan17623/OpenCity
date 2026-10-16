@@ -115,8 +115,18 @@ export function initInput() {
     for (const n of keyboardHeld.get(id) || applyRemap(namesFor(e))) setInputKey('keyboard:' + id, n, false);
     keyboardHeld.delete(id);
   });
+  // Browsers occasionally report one wild movement event (a pointer-lock
+  // re-entry, a window focus change, a known Chrome glitch) that would snap the
+  // camera half way round. A huge jump straight out of a still or slow mouse is
+  // dropped; real fast flicks build up over several events and still pass.
+  let lastMove = 0;
   window.addEventListener('mousemove', (e) => {
-    if (document.pointerLockElement) { mouse.dx += e.movementX; mouse.dy += e.movementY; }
+    if (!document.pointerLockElement) return;
+    const size = Math.abs(e.movementX) + Math.abs(e.movementY);
+    const spike = size > 400 && lastMove < 60;
+    lastMove = size;
+    if (spike) return;
+    mouse.dx += e.movementX; mouse.dy += e.movementY;
   });
   window.addEventListener('mousedown', (e) => {
     if (e.button === 0) mouse.down = true;
@@ -147,6 +157,20 @@ export function initInput() {
   }
 }
 
+// Capture the mouse for looking around. With raw input the browser skips the
+// operating system's pointer acceleration, so the camera turns by the same
+// amount for the same hand movement however fast you move: it tracks like a
+// real head turn. Browsers without raw input fall back to a normal lock.
+export function captureMouse(el, raw = true) {
+  if (!el?.requestPointerLock) return;
+  const plain = () => { try { el.requestPointerLock()?.catch?.(() => {}); } catch { /* not allowed right now */ } };
+  if (!raw) { plain(); return; }
+  try {
+    const request = el.requestPointerLock({ unadjustedMovement: true });
+    request?.catch?.((err) => { if (err?.name === 'NotSupportedError') plain(); });
+  } catch { plain(); }
+}
+
 export function endFrame() {
   for (const k in pressed) delete pressed[k];
   for (const k in pressedModifiers) delete pressedModifiers[k];
@@ -168,7 +192,7 @@ let gpActive = false; // ignore pads until a real button press — RGB software
                       // and some drivers register phantom gamepads whose idle
                       // axes rest at -1, which would hold a movement key forever
 
-export function pollGamepad() {
+export function pollGamepad(dt = 1 / 60) {
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
   for (const p of pads) if (p && p.connected) { gp = p; break; }
@@ -194,8 +218,11 @@ export function pollGamepad() {
   if (ax(1) > 0.35) cur['KeyS'] = true;
   if (ax(0) < -0.35) cur['KeyA'] = true;
   if (ax(0) > 0.35) cur['KeyD'] = true;
-  if (Math.abs(ax(2)) > 0.2) mouse.dx += ax(2) * 16;
-  if (Math.abs(ax(3)) > 0.2) mouse.dy += ax(3) * 12;
+  // right stick turns the camera at a steady rate per second, so it feels the
+  // same at 30 fps as at 144 (same speed as before at 60 fps)
+  const step = Math.min(dt, 0.1) * 60;
+  if (Math.abs(ax(2)) > 0.2) mouse.dx += ax(2) * 16 * step;
+  if (Math.abs(ax(3)) > 0.2) mouse.dy += ax(3) * 16 * step;
 
   const btn = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
   if (btn(0)) cur['Space'] = true;

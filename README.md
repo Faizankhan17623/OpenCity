@@ -116,6 +116,7 @@ On the start screen, pick a save slot and a character (**WEAVER** balanced,
 | **Lifeguard rescue** | Tower on the beach; swim or boat out, tow swimmers to shore |
 | **Cat rescue** | Lost-pets board by spawn; fetch a cat stranded on a rooftop |
 | **Billboard hacker** | NETRUNNER stand by spawn; hack four rooftop billboards on one clock |
+| **Taco Loco food truck** | Taco truck by spawn; serve a 75-second lunch rush with keys 1–4, tips for speed |
 | **Bomb squad** | A device is planted somewhere in the city; reach it and hold E to defuse |
 | **Ambulance, fire, cop career, vigilante, bounty hunting** | Classic city jobs |
 
