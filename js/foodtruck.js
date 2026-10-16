@@ -99,7 +99,7 @@ function ensureHud(world) {
   if (F.hud) return F.hud;
   const el = document.createElement('div');
   el.id = 'foodtruck';
-  el.style.cssText = 'position:fixed;left:50%;top:170px;transform:translateX(-50%);width:340px;padding:8px 10px;' +
+  el.style.cssText = 'position:fixed;left:50%;top:96px;transform:translateX(-50%);width:340px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:8px 10px;' +
     'background:#1a0e08e0;border:1px solid #ffc040;border-radius:6px;display:none;z-index:30;color:#fff3c8;font:600 13px system-ui';
   const head = document.createElement('div');
   head.style.cssText = 'display:flex;justify-content:space-between;font-weight:800;margin-bottom:6px;color:#ffc040';
