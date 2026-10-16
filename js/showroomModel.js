@@ -30,13 +30,13 @@ export function createShowroom(world, position) {
   const colliders=walls.map(([x,z,rx,rz])=>({x0:p.x+x-rx,x1:p.x+x+rx,z0:p.z+z-rz,z1:p.z+z+rz,y0:0,y1:4.7,showroom:true}));
   world.city.colliders.push(...colliders);
   const state={group,fallback,car,bike,colliders,doors:[],loaded:false};world.showroom=state;
-  state.displayReady=loadAsset('/assets/vehicles/oc_hatch_01.glb').then(gltf=>{
+  state.displayReady=loadAsset('assets/vehicles/oc_hatch_01.glb').then(gltf=>{
     const display=gltf.scene;
     display.position.copy(car.position);display.rotation.copy(car.rotation);
     display.traverse(o=>{if(o.isLight)o.visible=false;if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
     group.add(display);car.visible=false;state.displayCar=display;return true;
   }).catch(()=>false);
-  state.assetReady=loadAsset('/assets/buildings/oc_showroom_01.glb').then(gltf=>{
+  state.assetReady=loadAsset('assets/buildings/oc_showroom_01.glb').then(gltf=>{
     const root=gltf.scene;
     root.traverse(o=>{
       if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}

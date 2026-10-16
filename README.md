@@ -29,6 +29,16 @@ Then open **http://localhost:8082**.
 - After the first visit a service worker caches the page and scripts, so the
   game keeps working offline.
 
+### Hosting it online
+
+The game is plain static files, so any static host works, including GitHub
+Pages. All paths are relative, so it runs from a domain root or from a
+subfolder such as `https://<user>.github.io/OpenCity/`.
+
+For GitHub Pages: repository **Settings → Pages**, choose **Deploy from a
+branch**, pick `main` and `/ (root)`, and save. The `.nojekyll` file is
+already in the repository, so Pages serves the files as they are.
+
 On the start screen, pick a save slot and a character (**WEAVER** balanced,
 **BOLT** fast, **BRICK** tough), then press **FREE ROAM** or **STORY**.
 
@@ -249,10 +259,6 @@ local file.
 
 ## Known limitations
 
-- **Hosting under a subfolder:** models and UI art load from root paths
-  (`/assets/...`), so hosting the game under one (for example a GitHub Pages
-  project site at `/OpenCity/`) breaks model loading. Serve it from a domain
-  root, as `npm start` does.
 - **First load needs the internet:** Three.js comes from jsDelivr.
 - **Missing art:** this edition ships without the loading screens, map-marker
   icons and story portraits (`presentationArt: false`). The map draws its own

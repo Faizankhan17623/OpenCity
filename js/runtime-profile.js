@@ -53,7 +53,7 @@ export const runtimeProfile = {
         "tyres"
       ],
       "asset": {
-        "url": "/assets/vehicles/oc_sedan_01.glb",
+        "url": "assets/vehicles/oc_sedan_01.glb",
         "wheels": [
           "Wheel_FL",
           "Wheel_FR",
@@ -118,7 +118,7 @@ export const runtimeProfile = {
         "tyres"
       ],
       "asset": {
-        "url": "/assets/vehicles/oc_sedan_01.glb",
+        "url": "assets/vehicles/oc_sedan_01.glb",
         "wheels": [
           "Wheel_FL",
           "Wheel_FR",
@@ -175,7 +175,7 @@ export const runtimeProfile = {
       "fuelCapacityLiters": 38,
       "fuelType": "petrol",
       "asset": {
-        "url": "/assets/vehicles/oc_hatch_01.glb",
+        "url": "assets/vehicles/oc_hatch_01.glb",
         "wheels": [
           "Wheel_FL",
           "Wheel_FR",
@@ -250,7 +250,7 @@ export const runtimeProfile = {
           "headlight": "OC_Headlight_Emission",
           "tail": "OC_Coast_Tail"
         },
-        "url": "/assets/vehicles/oc_scooter_01.glb",
+        "url": "assets/vehicles/oc_scooter_01.glb",
         "wheelRadius": 0.27
       },
       "fuelCapacityLiters": 12,
@@ -274,7 +274,7 @@ export const runtimeProfile = {
         "tyres"
       ],
       "asset": {
-        "url": "/assets/vehicles/oc_exotic_01.glb",
+        "url": "assets/vehicles/oc_exotic_01.glb",
         "wheels": [
           "Wheel_FL",
           "Wheel_FR",
@@ -339,7 +339,7 @@ export const runtimeProfile = {
         "tyres"
       ],
       "asset": {
-        "url": "/assets/vehicles/oc_police_sedan_01.glb",
+        "url": "assets/vehicles/oc_police_sedan_01.glb",
         "wheels": [
           "Wheel_FL",
           "Wheel_FR",
@@ -409,7 +409,7 @@ export const runtimeProfile = {
     "daySeconds": 1440
   },
   "policeHelicopterAsset": {
-    "url": "/assets/vehicles/oc_police_heli_01.glb",
+    "url": "assets/vehicles/oc_police_heli_01.glb",
     "root": "OC_Police_Heli_01",
     "mainRotor": "Rotor_Main",
     "tailRotor": "Rotor_Tail"
