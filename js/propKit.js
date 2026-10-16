@@ -111,3 +111,29 @@ export function storefront(scene, city, pos, opts = {}) {
   scene.add(group);
   return { group, w, h, d };
 }
+
+/**
+ * A lit name board on a pole beside an open-air stall (a chair, a tent, a
+ * frame), where a whole storefront would swallow the activity. It stands to
+ * one side of pos, square to the nearest road, readable from both faces.
+ */
+export function postSign(scene, city, pos, name, sign = {}, { offset = 2.1, height = 2.6 } = {}) {
+  const yaw = faceNearestRoad(city, pos);
+  const group = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, height, 8), shared.plinth);
+  pole.position.y = height / 2;
+  group.add(pole);
+  const sw = 1.8, sh = sw / 4;
+  const signMat = new THREE.MeshBasicMaterial({ map: signTexture(name, sign), toneMapped: false });
+  for (const side of [1, -1]) {
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), signMat);
+    board.position.set(0, height + sh / 2 - 0.05, side * 0.02);
+    board.rotation.y = side > 0 ? 0 : Math.PI;
+    group.add(board);
+  }
+  // step sideways (along the road) so the board never stands in the stall itself
+  group.position.set(pos.x - Math.cos(yaw) * offset, 0, pos.z + Math.sin(yaw) * offset);
+  group.rotation.y = yaw;
+  scene.add(group);
+  return group;
+}

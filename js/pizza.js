@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg } from './hud.js';
 import { sfxMissionPass, sfxMissionFail, sfxPickup } from './sound.js';
@@ -17,19 +18,7 @@ export function initPizza(scene, world, save) {
   if (pointBlocked(probe, world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(14, 0, -26));
   placeStreetSite(world.city, pos, 2.5, 'pizza');
 
-  const shop = new THREE.Mesh(
-    new THREE.BoxGeometry(2, 2.2, 2),
-    new THREE.MeshStandardMaterial({ color: 0xc94a2a, roughness: 0.6 })
-  );
-  shop.position.copy(pos).setY(1.1);
-  scene.add(shop);
-  const sign = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.8, 0.8, 0.15, 10),
-    new THREE.MeshBasicMaterial({ color: 0xf7d04a })
-  );
-  sign.rotation.x = Math.PI / 2;
-  sign.position.copy(pos).add(new THREE.Vector3(0, 2.6, 0));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'PIZZA', w: 2.6, d: 2.2, wall: 0xb8452a, accent: 0xf7d04a, sign: { fg: '#fff3c8', bg: '#5a1a0e', accent: '#f7d04a' } });
 
   world.pizza = { pos, on: false, t: 0, idx: 0, drop: null, runs: save?.pizzaRuns ?? 0 };
 }

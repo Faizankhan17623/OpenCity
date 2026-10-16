@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { postSign } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { createCharacter, animateWalk, animateIdle } from './characters.js';
 import { showToast } from './hud.js';
@@ -17,6 +18,7 @@ export function initBodyguard(scene, world, save) {
   const probe = new THREE.Vector3(pos.x, 1, pos.z);
   if (pointBlocked(probe, world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(44, 0, 16));
   placeStreetSite(world.city, pos, 2.5, 'bodyguard');
+  postSign(scene, world.city, pos, 'BODYGUARDS', { fg: '#ffffff', bg: '#1a1a1a', accent: '#d0d0d0' });
 
   const awning = new THREE.Mesh(
     new THREE.BoxGeometry(2.6, 0.2, 2),
