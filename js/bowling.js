@@ -94,7 +94,8 @@ function roll(world) {
   const aimAcc = 1 - Math.abs(b.aim - 0.5) * 2;      // 1 best
   const powAcc = Math.max(0, (b.marker - 0.4) / 0.6); // rewards high power
   const quality = Math.max(0, Math.min(1, aimAcc * 0.5 + powAcc * 0.5));
-  let knocked = Math.round(b.pinsStanding * (0.4 + quality * 0.65));
+  // a wild roll can still clip a pin or two; it no longer floors at 40% of the rack
+  let knocked = Math.round(b.pinsStanding * (0.1 + quality * 0.95));
   knocked = Math.max(0, Math.min(b.pinsStanding, knocked));
   b.pinsStanding -= knocked;
   b.score += knocked;

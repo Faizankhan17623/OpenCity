@@ -17,6 +17,7 @@ const NOTE_COUNT = 24;
 const FALL = 2.0;         // seconds for a note to fall to the line
 const HIT_WINDOW = 0.18;  // seconds of leeway around the line
 const SPAWN_GAP = 0.7;
+const STAKE = 25;         // cover charge for the mic
 
 export function initKaraoke(scene, world, save) {
   let pos = world.city.spawn.clone().add(new THREE.Vector3(-30, 0, -8));
@@ -104,8 +105,10 @@ export function updateKaraoke(world, dt, keys, pressed) {
   if (!k.playing) {
     const d = Math.hypot(player.pos.x - k.pos.x, player.pos.z - k.pos.z);
     if (d > 3.4 || !onFoot) return;
-    world.karaokeHint = `KARAOKE BAR — press <b>E</b> to perform${k.high ? ` (best ${k.high})` : ''}`;
+    world.karaokeHint = `KARAOKE BAR — press <b>E</b> to perform ($${STAKE})${k.high ? ` (best ${k.high})` : ''}`;
     if (pressed['KeyE']) {
+      if (world.money < STAKE) { showToast('Not enough cash for the cover charge'); return; }
+      world.money -= STAKE;
       const hud = ensureHud(world);
       hud.el.style.display = 'block';
       k.playing = true; k.notes.length = 0; k.spawned = 0; k.spawnT = 0; k.t = 0;
