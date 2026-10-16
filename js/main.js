@@ -64,6 +64,7 @@ import { initTreasure, updateTreasure, treasureSave } from './treasure.js';
 import { initLifeguard, updateLifeguard, lifeguardSave } from './lifeguard.js';
 import { initCatRescue, updateCatRescue, catRescueSave } from './catrescue.js';
 import { initWaterTaxi, updateWaterTaxi, waterTaxiSave } from './watertaxi.js';
+import { initFireworks, updateFireworks, fireworksSave } from './fireworks.js';
 import { initBarGames, updateBarGames, barGamesSave } from './bargames.js';
 import { initBowling, updateBowling, bowlingSave } from './bowling.js';
 import { initArchery, updateArchery, archerySave } from './archery.js';
@@ -458,6 +459,7 @@ initTreasure(scene, world, save);
 initLifeguard(scene, world, save);
 initCatRescue(scene, world, save);
 initWaterTaxi(scene, world, save);
+initFireworks(scene, world, save);
 initBarGames(scene, world, save);
 initBowling(scene, world, save);
 initArchery(scene, world, save);
@@ -860,6 +862,7 @@ function saveGame() {
       ...lifeguardSave(world),
       ...catRescueSave(world),
       ...waterTaxiSave(world),
+      ...fireworksSave(world),
       ...barGamesSave(world),
       ...bowlingSave(world),
       ...archerySave(world),
@@ -1646,6 +1649,7 @@ function updateOnFoot(dt) {
   else if (world.lifeguardHint) setHint(world.lifeguardHint);
   else if (world.catHint) setHint(world.catHint);
   else if (world.waterTaxiHint) setHint(world.waterTaxiHint);
+  else if (world.fireworksHint) setHint(world.fireworksHint);
   else if (world.barHint) setHint(world.barHint);
   else if (world.bowlingHint) setHint(world.bowlingHint);
   else if (world.archeryHint) setHint(world.archeryHint);
@@ -3526,6 +3530,7 @@ function update(dt) {
   updateLifeguard(world, dt, keys, pressed);
   updateCatRescue(world, dt, keys, pressed);
   updateWaterTaxi(world, dt);
+  updateFireworks(world, dt, keys, pressed);
   updateBarGames(world, dt, keys, pressed);
   updateBowling(world, dt, keys, pressed);
   updateArchery(world, dt, keys, pressed);

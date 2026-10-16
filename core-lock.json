@@ -1,7 +1,7 @@
 {
-  "version": "0.3.31-local",
-  "sha256": "b650244b87545d9c6994beb37598f54f311dabda30efb03d3a36faebc01ec9c7",
-  "source": "Basic main snapshot after editions without marker art draw vector map icons instead of first letters, with a matching full-map legend; shared edition compatibility validated",
+  "version": "0.3.32-local",
+  "sha256": "aa5f79560bb33fcf3ddebc5a8418a835cf08e16a755e3c1495fedfd0a51cf357",
+  "source": "Basic main snapshot after adding a night-time harbor fireworks show run from a console by the seawall; main.js wiring identical across both editions; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -97,6 +97,7 @@
     "js/fightclub.js": "8e1acce0e2381caf17c3a3db1a35065da3caeab7724541fe75e89f027640d783",
     "js/finale.js": "c07d748d6b1c97a2d738a763282ff07c38d436fb7aaf911463b253941115bfb5",
     "js/firefight.js": "953af8bf7318a18061d21dd3647c49fcae2015d9a5cb48e1bd68554a662d33aa",
+    "js/fireworks.js": "954245573e2c5924485c1a31e159d027124c4470fdca2359e22ae513669ba845",
     "js/fishing.js": "e627cbf52b4cf3df4484e28ba8b28d59abf105ab20fcab7dec8af0a2cf1fa901",
     "js/fortune.js": "3254e43a7d612f1eb6679d71afd1cfa310e536f3092d133166ed3d7c5be0e8c9",
     "js/gangs.js": "ca59c1dc286addf68cd90bebbefcf1cf25faaaff42e79ff4a2d064f2338dacfe",
@@ -134,7 +135,7 @@
     "js/lockpick.js": "711bf374022e64bd211a84acb6bdd3277b6ba0c3cab8e7fc5c9e49213f38ea46",
     "js/lottery.js": "c73c0da6573bca070a4dc62ff7bda75f8258918235dd9a525f3d3f1c792b82a4",
     "js/mailrun.js": "0fb58bf95a5e39d5ed96b35f9187a45389750bd56c222630cf2cf080dff36c0d",
-    "js/main.js": "30ca35e414cea58ca52117a7e63d65358192d52053d733a683701a0370960e49",
+    "js/main.js": "97ee825caff2aaf7e981be6392e0b46ac6245d6834da59ccd0350d61ff8b3456",
     "js/mall.js": "39f5388ec7c5ad2f400e7a91c99be6c8e8e953aa10c935bbda96c96c0eced3d8",
     "js/mapMarkers.js": "2020cf0465cd8c909ff6257dfba923ed430ed2eb52464a37e2723c4d63d32f35",
     "js/mayor.js": "967fc4746cde6ae2f958245048c3294c28c570900bc4a37746aea7b20262833b",
