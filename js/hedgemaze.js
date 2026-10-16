@@ -19,7 +19,7 @@ const T = 0.5;              // hedge thickness
 const H = 2.7;              // visible hedge height
 const COLLIDE_H = 3.6;      // collider height: a double jump can't clear it
 const MAX_Y = 3.2;          // feet above this during a run = disqualified
-const SEED = 0x4ed6e5;      // fixed layout
+const SEED = 3540;          // fixed layout: 37-45 cell routes from any entrance side
 const SITE_RADIUS = 11.5;   // covers the 21.6 m maze plus its outer hedge
 const GOAL_REACH = 1.3;
 const START_REACH = 2.4;
