@@ -1,7 +1,7 @@
 {
-  "version": "0.3.23-local",
-  "sha256": "5bfb2958875dcbc7d4f375ab417b31d7e500be5c902e5d935ffd1da3c14e76cd",
-  "source": "Basic main snapshot after closing three easy-money loops: stolen lockpick cars stay gone for the in-game day across reloads, karaoke takes a $25 cover charge, and a careless bowling roll no longer floors at 40% of the pins; shared edition compatibility validated",
+  "version": "0.3.24-local",
+  "sha256": "30888f5a4b72ea27a6d2d69ac160a594a27a52c765ef797d4360f3e716735140",
+  "source": "Basic main snapshot after hardening the save-slot cloud line: server-supplied summary values are coerced to numbers before rendering; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -181,7 +181,7 @@
     "js/runtime.js": "b91dc917445f93f48d6724c6e573bec46957ecda05df47414b7b975ddf0364b3",
     "js/safehouses.js": "b420aa5c553df14a21cf58f097dcb5c2bef76724239e13d5cea35aa8a3e1dcd7",
     "js/saveStorage.js": "661bd249c795a3d23a3c8f432d9da6d095a06135c77ede1aa8ce22327b03bd33",
-    "js/saveslots.js": "bfc9f5dff963dd7d283f5652b6f8af93c9c9277ea14e505da9033fbf7b5d0f89",
+    "js/saveslots.js": "d94fdf636b06943b6334430020e222301555507f87777f4f8be996e760ca82f4",
     "js/scars.js": "3744579877a80a3e55a3bb5b3e3b6b4c9f130a4da6cca111ea23a72fbe1800ae",
     "js/sewer.js": "ef25b65a004b4beb6e0d5f5838c7bd2731d52c0fccd6647d497594df531ccc88",
     "js/shops.js": "febff605faef11e713c78175ab85e45a7866688beef8cdd9a77e2f23bb237fd1",
