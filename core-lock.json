@@ -1,7 +1,7 @@
 {
-  "version": "0.3.33-local",
-  "sha256": "5efa4ea331e11db8da820b92b2121fe96f15a2253f5b7873c254997eceff56fb",
-  "source": "Basic main snapshot after giving the law office and pizza shop storefronts and the open-air stalls road-facing name boards; shared edition compatibility validated",
+  "version": "0.3.34-local",
+  "sha256": "ab5d20d5ace8ec178d02c45c1ed3b804d9285e719e42c482660010f3e714033e",
+  "source": "Basic main snapshot after the full map stops labelling pickups, so place names stay readable; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -137,7 +137,7 @@
     "js/mailrun.js": "0fb58bf95a5e39d5ed96b35f9187a45389750bd56c222630cf2cf080dff36c0d",
     "js/main.js": "97ee825caff2aaf7e981be6392e0b46ac6245d6834da59ccd0350d61ff8b3456",
     "js/mall.js": "39f5388ec7c5ad2f400e7a91c99be6c8e8e953aa10c935bbda96c96c0eced3d8",
-    "js/mapMarkers.js": "2020cf0465cd8c909ff6257dfba923ed430ed2eb52464a37e2723c4d63d32f35",
+    "js/mapMarkers.js": "f604a17ddd3237bd1a45cd0eb8af1265ea7adaaf6c9c1ff9e193f32332bb7808",
     "js/mayor.js": "967fc4746cde6ae2f958245048c3294c28c570900bc4a37746aea7b20262833b",
     "js/menu.js": "a288eee2cfc9aad17780b1b6392c94eacc72b5ca1974eda0ffcc71b0c51c3b2d",
     "js/meters.js": "4273e0c916e3d6e7f87378fa2ce1002d9e74d86235e13eefde0f88913c3d19bc",
