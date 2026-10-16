@@ -5,8 +5,8 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
 // A single skeleton/clip library is shared by Kai, contacts and police. Game
 // physics owns movement; clip Root travel is removed for ordinary locomotion.
-const libraryUrl = '/assets/characters/oc_humanoid_base_01.glb';
-const weaponUrl = '/assets/props/oc_weapon_compact_01.glb';
+const libraryUrl = 'assets/characters/oc_humanoid_base_01.glb';
+const weaponUrl = 'assets/props/oc_weapon_compact_01.glb';
 const cache = new Map();
 const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
 const loader = new GLTFLoader().setDRACOLoader(draco);
@@ -14,7 +14,7 @@ const contacts = ['rosa','dara','celia','sal','tessa','rook','imani','leela','no
 export const CHARACTER_ASSETS = Object.freeze(Object.fromEntries([
   ['kai', 'oc_kai_dena_01'], ['officer', 'oc_police_officer_01'],
   ...contacts.map(key => [key, 'oc_contact_' + key + '_01']),
-].map(([key,id]) => [key, Object.freeze({id,url:'/assets/characters/'+id+'.glb'})])));
+].map(([key,id]) => [key, Object.freeze({id,url:'assets/characters/'+id+'.glb'})])));
 const requiredBones = ['Root','Hips','Spine_01','Spine_02','Spine_03','Head','Arm_Upper_L','Arm_Upper_R','Arm_Lower_L','Arm_Lower_R','Leg_Upper_L','Leg_Upper_R','Attach_Hand_R','Attach_Hip'];
 const upperBone = /^(Spine_|Neck|Head|Shoulder_|Arm_|Hand_|Fingers_|Thumb_|Attach_Hand_)/;
 const clamp = (n,a,b) => Math.min(b,Math.max(a,n));

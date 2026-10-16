@@ -12,7 +12,7 @@ const BAY_HALF_LENGTH = 3.8;
 // The optional model is mounted by the local preview server; public builds
 // keep the procedural station when the private asset is unavailable.
 export function attachNitroStation(world, fallback) {
-  world.nitroAssetReady = loadAsset('/assets/props/oc_nitro_station_01.glb').then(gltf => {
+  world.nitroAssetReady = loadAsset('assets/props/oc_nitro_station_01.glb').then(gltf => {
     const root = gltf.scene;
     root.position.copy(world.nitroPos);
     root.position.y += APRON_HEIGHT;
