@@ -18,7 +18,7 @@ import { addRep } from './economy.js';
 
 const WALL_H = 12;
 const WALL_W = 4.4;
-const FACE_Z = -0.6;        // climbing face, local z (local +z faces the road)
+const FACE_Z = 0.3;         // climbing face, local z (local +z faces the road)
 const HOLD_OUT = 0.55;      // climber's centre out from the face
 const MOVES = 24;           // moves from the mat to the bell
 const FOOT0 = 0.25;         // feet on the mat
@@ -37,7 +37,7 @@ const REST_TIME = 3;
 const LOWER_SPEED = 1.5;
 const PAY_BASE = 40, PAY_PER_SEC = 8;
 const COOLDOWN = 4;
-const SITE_R = 4.2;
+const SITE_R = 3.0;         // wall, posts, struts and mat all fit inside this
 const REACH = 3.0;
 const HOLD_COLORS = [0xff4060, 0x40c0ff, 0xffd030, 0x50e070, 0xb070ff, 0xff8a30];
 
@@ -82,10 +82,10 @@ export function initClimbWall(scene, world, save) {
   for (const x of [-WALL_W / 2 - 0.12, WALL_W / 2 + 0.12]) add(new THREE.BoxGeometry(0.24, WALL_H + 0.8, 0.3), steel, x, (WALL_H + 0.8) / 2, FACE_Z - 0.2);
   add(new THREE.BoxGeometry(WALL_W + 0.5, 0.25, 0.9), steel, 0, WALL_H + 0.55, FACE_Z);             // top beam / anchor bar
   for (const x of [-1.6, 1.6]) {                                                                     // raking struts behind
-    const s = add(new THREE.BoxGeometry(0.18, 10.4, 0.18), steel, x, 5, FACE_Z - 2.0);
-    s.rotation.x = 0.29; // top leans in to the back of the wall
+    const s = add(new THREE.BoxGeometry(0.18, 10.4, 0.18), steel, x, 5, FACE_Z - 1.3);
+    s.rotation.x = 0.18; // top leans in to the back of the wall
   }
-  add(new THREE.BoxGeometry(WALL_W + 1.2, 0.3, 2.6), new THREE.MeshStandardMaterial({ color: 0x2856a8, roughness: 0.95 }), 0, 0.15, FACE_Z + 1.3); // crash mat
+  add(new THREE.BoxGeometry(WALL_W + 1.0, 0.3, 2.3), new THREE.MeshStandardMaterial({ color: 0x2856a8, roughness: 0.95 }), 0, 0.15, FACE_Z + 1.15); // crash mat
   for (const m of LEDGES) add(new THREE.BoxGeometry(2.2, 0.1, 0.4), wood, 0, footY(m) - 0.05, FACE_Z + 0.2);
   // auto-belay box and the bell
   add(new THREE.BoxGeometry(0.5, 0.5, 0.35), new THREE.MeshStandardMaterial({ color: 0xd8302a, roughness: 0.5 }), 0, WALL_H + 0.2, FACE_Z + 0.25);

@@ -47,14 +47,14 @@ function grimeTexture() {
   c.width = 128; c.height = 128;
   const g = c.getContext('2d');
   if (!g) return null;
-  g.fillStyle = 'rgba(92,64,30,0.42)';
+  g.fillStyle = 'rgba(118,80,34,0.7)';
   g.fillRect(0, 0, 128, 128);
   let s = 7;
   const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < 46; i++) {
     const x = rnd() * 128, y = rnd() * 128, r = 6 + rnd() * 22;
     const grd = g.createRadialGradient(x, y, 0, x, y, r);
-    grd.addColorStop(0, `rgba(70,46,18,${0.35 + rnd() * 0.4})`);
+    grd.addColorStop(0, `rgba(64,40,14,${0.5 + rnd() * 0.45})`);
     grd.addColorStop(1, 'rgba(70,46,18,0)');
     g.fillStyle = grd;
     g.fillRect(x - r, y - r, r * 2, r * 2);
@@ -174,7 +174,7 @@ export function initWindowWasher(scene, world, save) {
     rig.add(m);
   }
   // grime: one quad per panel, shown when that panel is dirty
-  const grimeMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: grimeTexture(), transparent: true, opacity: 0.92, depthWrite: false });
+  const grimeMat = new THREE.MeshLambertMaterial({ color: 0xffffff, map: grimeTexture(), transparent: true, opacity: 1, depthWrite: false });
   if (!grimeMat.map) { grimeMat.color.set(0x5a3e1c); grimeMat.opacity = 0.7; }
   const grimeGeo = new THREE.PlaneGeometry(PANEL_W, PANEL_H);
   const colX = [];
