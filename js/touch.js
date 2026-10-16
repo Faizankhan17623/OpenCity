@@ -257,8 +257,9 @@ export function initTouch() {
   // WPN — cycle weapon, on foot (combat needs it handy, not in the tray)
   button('WPN', 'right:198px;bottom:120px;width:48px;height:48px;font-size:10px;',
     () => press('KeyX'), () => release('KeyX'), 'foot').id = 'btn-wpn';
-  // radio — vehicle only
-  button('📻', 'left:168px;bottom:100px;width:52px;height:52px;font-size:18px;',
+  // radio — vehicle only. It takes Q's spot (Q is on-foot only): it used to sit
+  // exactly on top of E, so in a car a tap on E hit the radio and you couldn't get out
+  button('📻', 'left:234px;bottom:122px;width:48px;height:48px;font-size:18px;',
     () => press('KeyR'), () => release('KeyR'), 'vehicle');
 
   // ================= TRAY — behind the ⋯ toggle =================
@@ -286,14 +287,18 @@ export function initTouch() {
   }, { passive: false });
   ui.appendChild(trayToggleBtn);
 
-  // 1-4 digit row: appears only while standing at a kiosk (casino, wardrobe...)
-  for (let i = 1; i <= 4; i++) {
-    const b = button(String(i),
-      `left:calc(50% + ${(i - 2.5) * 58}px);top:118px;width:48px;height:48px;font-size:17px;display:none;`,
-      () => press('Digit' + i), () => release('Digit' + i));
+  // digit row: appears only while standing at a kiosk (casino, wardrobe...).
+  // 1-6 plus 0: the barber has six colours, the arms dealer, stocks and tattoo
+  // menus five options, the nitro bay uses 5 and 6, and the tattoo parlor 0 to
+  // remove ink, so a 1-4 row left those options out of reach on phones.
+  const DIGITS = [1, 2, 3, 4, 5, 6, 0];
+  DIGITS.forEach((d, k) => {
+    const b = button(String(d),
+      `left:calc(50% + ${(k - (DIGITS.length - 1) / 2) * 52 - 22}px);top:118px;width:44px;height:44px;font-size:16px;display:none;`,
+      () => press('Digit' + d), () => release('Digit' + d));
     b.className = 'kioskbtn';
     kioskBtns.push(b);
-  }
+  });
 
   // contextual actions in the freed-up bottom centre — shown only when the
   // action is actually in reach (driven from main.js via showContextButtons):
