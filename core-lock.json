@@ -1,7 +1,7 @@
 {
-  "version": "0.3.30-local",
-  "sha256": "80acdd150cb54aaace945b64dc2489da84d6c22ab3f693f26114009935eb430a",
-  "source": "Basic main snapshot after giving the activity buildings proper storefronts with readable, road-facing illuminated signs and the pinball box a real cabinet; shared edition compatibility validated",
+  "version": "0.3.31-local",
+  "sha256": "b650244b87545d9c6994beb37598f54f311dabda30efb03d3a36faebc01ec9c7",
+  "source": "Basic main snapshot after editions without marker art draw vector map icons instead of first letters, with a matching full-map legend; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -136,9 +136,9 @@
     "js/mailrun.js": "0fb58bf95a5e39d5ed96b35f9187a45389750bd56c222630cf2cf080dff36c0d",
     "js/main.js": "30ca35e414cea58ca52117a7e63d65358192d52053d733a683701a0370960e49",
     "js/mall.js": "39f5388ec7c5ad2f400e7a91c99be6c8e8e953aa10c935bbda96c96c0eced3d8",
-    "js/mapMarkers.js": "00ce50b606d0f64038d62edfd3302fafd123a8d249abd35efb25b66d8b46c94f",
+    "js/mapMarkers.js": "2020cf0465cd8c909ff6257dfba923ed430ed2eb52464a37e2723c4d63d32f35",
     "js/mayor.js": "967fc4746cde6ae2f958245048c3294c28c570900bc4a37746aea7b20262833b",
-    "js/menu.js": "278cab00cd2c913a99be295150ad3ca143b67d74874fa2837a4f4f84eef2218e",
+    "js/menu.js": "a288eee2cfc9aad17780b1b6392c94eacc72b5ca1974eda0ffcc71b0c51c3b2d",
     "js/meters.js": "4273e0c916e3d6e7f87378fa2ce1002d9e74d86235e13eefde0f88913c3d19bc",
     "js/minions.js": "859e9c256c75dc6b094630358b8e8fd75577ae4be7369eedff16fcd6d4e0fa80",
     "js/missions.js": "805ecc3b4839b5c3fcde313acd81779357817ffc9fb6ba1ed84e037a13c49866",
