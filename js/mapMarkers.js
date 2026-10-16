@@ -2,8 +2,12 @@
 import { presentationArt } from './uiArt.js';
 const images=new Map();
 function markerImage(kind){if(!presentationArt)return null;if(kind==='nitro')kind='pump';if(!images.has(kind)){const image=new Image();image.src='/assets/ui/markers/marker-'+kind+'.svg';images.set(kind,image);}return images.get(kind);}
+// Readable names for the world.*Blip objectives; anything new falls back to its
+// key split into words ("fooBarBlip" -> "Foo bar objective") instead of "fooBar objective".
+const BLIP_LABELS={airDropBlip:'Sky-fare drop-off',airPickBlip:'Sky-fare pickup',bhBlip:'Bounty target',billboardBlip:'Billboard',blackoutBlip:'Blackout job',boatraceBlip:'Boat-race buoy',bombBlip:'Bomb',bossrushBlip:'Boss rush',bountyBlip:'Bounty',busBlip:'Bus stop',catBlip:'Stranded cat',contractBlip:'Contract target',copBlip:'Police call',disasterBlip:'Disaster',droneBlip:'Drone delivery',druglabBlip:'Lab job',empireBlip:'Turf fight',fireBlip:'Fire',garbageBlip:'Garbage bin',gauntletBlip:'Gauntlet',kaijuBlip:'Kaiju',kartBlip:'Kart gate',lifeguardBlip:'Lifeguard call',mailBlip:'Mail drop',medBlip:'Patient',museumBlip:'Museum job',mwBlip:'Most-wanted target',nemesisBlip:'Nemesis',newsBlip:'News story',papBlip:'Paparazzi target',phoneBlip:'Payphone job',pizzaBlip:'Pizza delivery',raceBlip:'Race checkpoint',repoBlip:'Repo target',rideBlip:'Passenger',slipBlip:'Pink-slip race',smuggleBlip:'Smuggling drop',streetRaceBlip:'Street race',swingBlip:'Swing-race ring',syndBlip:'Syndicate job',taxiBlip:'Taxi fare',tourneyBlip:'Tournament',towBlip:'Tow job',trainBlip:'Train',truckBlip:'Armored truck',valetBlip:'Valet car',vigBlip:'Vigilante target',waterDropBlip:'Water-taxi drop-off',waterPickBlip:'Water-taxi pickup'};
+function blipLabel(key){if(BLIP_LABELS[key])return BLIP_LABELS[key];const words=key.slice(0,-4).replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase();return words.charAt(0).toUpperCase()+words.slice(1)+' objective';}
 export function collectMapMarkers(world){
- const sites=[],add=(pos,kind,label,category='services')=>{if(pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.z))sites.push({pos,kind,label,category});};
+ const sites=[],add=(pos,kind,label,category='services',quiet=false)=>{if(pos&&Number.isFinite(pos.x)&&Number.isFinite(pos.z))sites.push({pos,kind,label,category,quiet});};
  for(const m of world.bank?.machines||[])if(!m.dead)add(m.pos,'bank','Bank / ATM');
  add(world.city.authoredWorld?.bankSockets().find(s=>s.name==='socket_atm')?.pos,'bank','Harbour Mutual');
  add(world.dealerPos,'showroom','Auto Palace');add(world.workshopPos,'garage','Workshop');
@@ -20,10 +24,10 @@ export function collectMapMarkers(world){
  for(const v of [...(world.cops||[]),...(world.policeHelis||[])])if(!v.dead)add(v.pos,'police','Police','police');
  for(const v of world.helis||[])if(!v.dead&&v!==world.player.inHeli)add(v.pos,'owned','Helicopter');
  for(const v of world.tanks||[])if(!v.dead)add(v.pos,'hazard','Tank','police');
- for(const pk of world.pickups||[])add(pk.pos,'owned',pk.type,'activities');
+ for(const pk of world.pickups||[])add(pk.pos,'owned',pk.type,'activities',true); // icon only: their labels buried the place names
  const m=world.mission;if(m)add(m.active?m.objectivePos:m.markerPos,'mission',m.active?'Objective':'Job','objectives');
  const stage=world.campaignService?.currentStage();if(stage)add(stage.position,'mission',stage.label,'objectives');
- for(const[key,value]of Object.entries(world))if(key.endsWith('Blip')&&value)add(value,key==='fireBlip'||key==='disasterBlip'||key==='bombBlip'?'hazard':'mission',key.slice(0,-4)+' objective','objectives');
+ for(const[key,value]of Object.entries(world))if(key.endsWith('Blip')&&value)add(value,key==='fireBlip'||key==='disasterBlip'||key==='bombBlip'?'hazard':'mission',blipLabel(key),'objectives');
  add(world.waypoint,'waypoint','Waypoint','objectives');
  return sites;
 }
@@ -79,7 +83,7 @@ export function drawMapMarkers(ctx,world,project,{size=18,labels=false,width=ctx
   if(isNitro){ctx.font='900 '+Math.round(markerSize*.9)+'px Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='#1c160b';ctx.fillStyle='#ffe08a';ctx.strokeText('N',0,1);ctx.fillText('N',0,1);}
   if(p.edge){ctx.save();ctx.rotate(p.angle);ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(size*.91,0);ctx.lineTo(size*.52,-4);ctx.lineTo(size*.52,4);ctx.closePath();ctx.fill();ctx.restore();}
   if(p.count>1){ctx.fillStyle='#f4eee3';ctx.beginPath();ctx.arc(size*.4,-size*.4,9,0,Math.PI*2);ctx.fill();ctx.fillStyle='#142c2f';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.badge,size*.4,-size*.4);}
-  if(labels&&!p.edge&&!p.crowded){ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.strokeStyle='#142c2f';ctx.lineWidth=3;ctx.fillStyle='#f4eee3';const label=p.count>1?p.count+' nearby places':p.label;const x=Math.max(-p.x+65,Math.min(width-p.x-65,0));ctx.strokeText(label,x,size/2+5);ctx.fillText(label,x,size/2+5);}
+  if(labels&&!p.edge&&!p.crowded&&!(p.count>1?p.members.every(m=>m.quiet):p.quiet)){ctx.font='bold 11px sans-serif';ctx.textAlign='center';ctx.textBaseline='top';ctx.strokeStyle='#142c2f';ctx.lineWidth=3;ctx.fillStyle='#f4eee3';const label=p.count>1?p.count+' nearby places':p.label;const x=Math.max(-p.x+65,Math.min(width-p.x-65,0));ctx.strokeText(label,x,size/2+5);ctx.fillText(label,x,size/2+5);}
   if(p.edge&&!p.crowded){const focus=world.player?.inCar?.pos||world.player?.pos;if(focus){const d=Math.hypot(p.pos.x-focus.x,p.pos.z-focus.z),label=d>=1000?(d/1000).toFixed(1)+' km':Math.round(d)+' m';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#f4eee3';ctx.strokeStyle='#142c2f';ctx.lineWidth=3;const x=-Math.cos(p.angle)*25,y=-Math.sin(p.angle)*21;ctx.strokeText(label,x,y);ctx.fillText(label,x,y);}}
   ctx.restore();
  }return layout;

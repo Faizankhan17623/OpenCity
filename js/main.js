@@ -65,6 +65,7 @@ import { initLifeguard, updateLifeguard, lifeguardSave } from './lifeguard.js';
 import { initCatRescue, updateCatRescue, catRescueSave } from './catrescue.js';
 import { initWaterTaxi, updateWaterTaxi, waterTaxiSave } from './watertaxi.js';
 import { initFireworks, updateFireworks, fireworksSave } from './fireworks.js';
+import { initBillboard, updateBillboard, billboardSave } from './billboard.js';
 import { initBarGames, updateBarGames, barGamesSave } from './bargames.js';
 import { initBowling, updateBowling, bowlingSave } from './bowling.js';
 import { initArchery, updateArchery, archerySave } from './archery.js';
@@ -460,6 +461,7 @@ initLifeguard(scene, world, save);
 initCatRescue(scene, world, save);
 initWaterTaxi(scene, world, save);
 initFireworks(scene, world, save);
+initBillboard(scene, world, save);
 initBarGames(scene, world, save);
 initBowling(scene, world, save);
 initArchery(scene, world, save);
@@ -863,6 +865,7 @@ function saveGame() {
       ...catRescueSave(world),
       ...waterTaxiSave(world),
       ...fireworksSave(world),
+      ...billboardSave(world),
       ...barGamesSave(world),
       ...bowlingSave(world),
       ...archerySave(world),
@@ -1650,6 +1653,7 @@ function updateOnFoot(dt) {
   else if (world.catHint) setHint(world.catHint);
   else if (world.waterTaxiHint) setHint(world.waterTaxiHint);
   else if (world.fireworksHint) setHint(world.fireworksHint);
+  else if (world.billboardHint) setHint(world.billboardHint);
   else if (world.barHint) setHint(world.barHint);
   else if (world.bowlingHint) setHint(world.bowlingHint);
   else if (world.archeryHint) setHint(world.archeryHint);
@@ -3531,6 +3535,7 @@ function update(dt) {
   updateCatRescue(world, dt, keys, pressed);
   updateWaterTaxi(world, dt);
   updateFireworks(world, dt, keys, pressed);
+  updateBillboard(world, dt, keys, pressed);
   updateBarGames(world, dt, keys, pressed);
   updateBowling(world, dt, keys, pressed);
   updateArchery(world, dt, keys, pressed);
@@ -3681,7 +3686,7 @@ function update(dt) {
   // job status stays on screen even from inside a vehicle
   if (player.inCar || player.inBoat || player.inHeli) {
     const drivingHint = world.nemesisHint || world.zombieHint || world.prisonHint ||
-      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.lifeguardHint || world.catHint || world.waterTaxiHint || world.trainHint || world.cheistHint || world.derbyHint ||
+      world.heistHint || world.vaultHint || world.bombHint || world.airHint || world.busHint || world.garbageHint || world.towHint || world.kartHint || world.mailHint || world.lifeguardHint || world.catHint || world.waterTaxiHint || world.billboardHint || world.trainHint || world.cheistHint || world.derbyHint ||
       world.empireHint || world.papHint || world.fireHint || world.museumHint ||
       world.turfHint || world.raidHint || world.syndHint || world.kaijuHint ||
       world.medHint || world.expHint || world.bountyHint || world.bhuntHint ||
