@@ -422,6 +422,7 @@ const world = {
   tokensGot: [...(save.tokens || [])],
   slowmoT: 0,
 };
+world.web = web; // activities can tell when the player is web-swinging (web.attached)
 world.level = 1 + Math.floor(Math.sqrt(world.xp / 120));
 world.settings.gfxTier ||= world.settings.lowGfx ? 'low' : 'auto';
 world.settings.lowGfx = gfxTier === 'low';
