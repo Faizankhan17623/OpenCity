@@ -1,7 +1,7 @@
 {
-  "version": "0.3.37-local",
-  "sha256": "0beafb18a8f13b7e746b75f4e68f38adbe59ef49ece2a941f787a6324c2e424a",
-  "source": "Basic main snapshot after touch fixes: the in-car radio no longer covers E, the kiosk digit row covers 1-6 and 0, and pinball quits on E instead of W/S; shared edition compatibility validated",
+  "version": "0.3.39-local",
+  "sha256": "b6064e2e2ed10d7d0d3507b78b6403646bd69275fe423004431aec2a85d713cd",
+  "source": "Basic main snapshot after merging the touch-control fixes (#12) and relative asset paths (#13); recomputes the aggregate hash the merge left stale; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
