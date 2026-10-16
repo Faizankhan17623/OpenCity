@@ -1,7 +1,7 @@
 {
-  "version": "0.3.24-local",
-  "sha256": "30888f5a4b72ea27a6d2d69ac160a594a27a52c765ef797d4360f3e716735140",
-  "source": "Basic main snapshot after hardening the save-slot cloud line: server-supplied summary values are coerced to numbers before rendering; shared edition compatibility validated",
+  "version": "0.3.25-local",
+  "sha256": "fff5f7b852f38f4f6381815f40e01729293fc7be35f8420011b636b1cb3cd644",
+  "source": "Basic main snapshot after adding a rooftop cat rescue job from a lost-pets board by spawn; main.js wiring identical across both editions; shared edition compatibility validated",
   "files": {
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "icon-192.png": "627c4ffb95070171610d649b8c891a5911a65820aec8c6896eb759c9120af0c1",
@@ -59,6 +59,7 @@
     "js/carwash.js": "23ab7404dfde9912a4df2b33cda6c04f6286e08418011393f063ee989b6778d9",
     "js/casinoboss.js": "6eb9c3643d9c527754e22635e8a4280e6b7f02026b3eca46c87cad5f79bbd604",
     "js/casinoheist.js": "48cd150d542931262583438d5848ea45780e3309c3c5d6a5a01a1707b3e60ebb",
+    "js/catrescue.js": "159d612b557ccd488f4117521d5d92e2b3a8f668564853991353ecc756cb4e95",
     "js/characterModel.js": "e17eb0923a51331b55c7fbfd1ac57300649a5b7029634c21e1225200c399ee24",
     "js/characterSequences.js": "59265b09296984e742253696266378b6c991392dff190c3dec38caf00862b7a4",
     "js/characters.js": "eb79b9db1c17becafdcd114d241d74593936e2300c4e1ff0e586481b46a3d920",
@@ -133,7 +134,7 @@
     "js/lockpick.js": "711bf374022e64bd211a84acb6bdd3277b6ba0c3cab8e7fc5c9e49213f38ea46",
     "js/lottery.js": "c73c0da6573bca070a4dc62ff7bda75f8258918235dd9a525f3d3f1c792b82a4",
     "js/mailrun.js": "618777bc8a5b6811fde87fdcbc4242a1bc7e0eb84695e0db2a0d53e2338ce26a",
-    "js/main.js": "edcbadb4ff961b6092cf01e3a8d10a83a394ac66946f083b29a68463bb5b1d81",
+    "js/main.js": "21b7de59aab2d718afcc687e2c26c6a4cdcd20900669286cfe37b4df3c944822",
     "js/mall.js": "39f5388ec7c5ad2f400e7a91c99be6c8e8e953aa10c935bbda96c96c0eced3d8",
     "js/mapMarkers.js": "b2b1e8f00882858039d613ea566858f5d2583e6b3ddf920cde0c9d0fd2df2665",
     "js/mayor.js": "967fc4746cde6ae2f958245048c3294c28c570900bc4a37746aea7b20262833b",
