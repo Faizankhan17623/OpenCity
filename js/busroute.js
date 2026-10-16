@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxMissionPass, sfxPickup } from './sound.js';
@@ -39,18 +40,7 @@ export function initBusRoute(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 2)) pos = world.city.spawn.clone().add(new THREE.Vector3(-26, 0, 20));
   placeStreetSite(world.city, pos, 2.8, 'bus-depot');
 
-  const booth = new THREE.Mesh(
-    new THREE.BoxGeometry(2.4, 2.6, 2),
-    new THREE.MeshStandardMaterial({ color: 0x2f5f8a, roughness: 0.7 })
-  );
-  booth.position.copy(pos).setY(1.3);
-  scene.add(booth);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 0.7, 0.15),
-    new THREE.MeshBasicMaterial({ color: 0xffd24a })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 2.9, 0));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'CITY LINE', w: 2.8, d: 2.2, wall: 0x3d6d96, accent: 0xe0b22c, sign: { fg: '#ffd24a', bg: '#10263a', accent: '#ffd24a' } });
 
   // one reusable stop ring + beacon that hops to the next stop
   const ring = new THREE.Mesh(

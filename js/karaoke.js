@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
@@ -24,18 +25,7 @@ export function initKaraoke(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(-26, 0, -12));
   placeStreetSite(world.city, pos, 2.6, 'karaoke');
 
-  const bar = new THREE.Mesh(
-    new THREE.BoxGeometry(3, 2.6, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x2a1840, roughness: 0.7 })
-  );
-  bar.position.copy(pos).setY(1.3);
-  scene.add(bar);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 0.7, 0.12),
-    new THREE.MeshBasicMaterial({ color: 0xff55c0 })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 3, 1.2));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'KARAOKE', w: 3, d: 2.4, wall: 0x2e1a46, accent: 0xff55c0, sign: { fg: '#ffd6f0', bg: '#1d0d2e', accent: '#ff55c0' } });
 
   world.karaoke = {
     pos, playing: false,

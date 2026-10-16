@@ -236,6 +236,7 @@
     "js/police.js",
     "js/prestige.js",
     "js/prison.js",
+    "js/propKit.js",
     "js/properties.js",
     "js/propraid.js",
     "js/pursuitNavigation.js",

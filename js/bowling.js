@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxPickup, sfxMissionPass, sfxMissionFail } from './sound.js';
@@ -18,18 +19,7 @@ export function initBowling(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 1.6)) pos = world.city.spawn.clone().add(new THREE.Vector3(-18, 0, -20));
   placeStreetSite(world.city, pos, 2.6, 'bowling');
 
-  const hall = new THREE.Mesh(
-    new THREE.BoxGeometry(3.2, 2.6, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x242a48, roughness: 0.7 })
-  );
-  hall.position.copy(pos).setY(1.3);
-  scene.add(hall);
-  const sign = new THREE.Mesh(
-    new THREE.BoxGeometry(2.6, 0.6, 0.12),
-    new THREE.MeshBasicMaterial({ color: 0x55e6ff })
-  );
-  sign.position.copy(pos).add(new THREE.Vector3(0, 3, 1.25));
-  scene.add(sign);
+  storefront(scene, world.city, pos, { name: 'STRIKE LANES', w: 3.2, d: 2.4, wall: 0x2c3358, accent: 0x55e6ff, sign: { fg: '#ffffff', bg: '#111733', accent: '#55e6ff' } });
 
   world.bowling = {
     pos, playing: false,

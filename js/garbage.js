@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { blockStart, N, pointBlocked } from './city.js';
 import { showToast, showMissionMsg, showNews } from './hud.js';
 import { sfxMissionPass, sfxMissionFail, sfxPickup } from './sound.js';
@@ -21,12 +22,7 @@ export function initGarbage(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 2)) pos = world.city.spawn.clone().add(new THREE.Vector3(26, 0, -24));
   placeStreetSite(world.city, pos, 2.8, 'yard');
 
-  const yard = new THREE.Mesh(
-    new THREE.BoxGeometry(3, 2.4, 2.4),
-    new THREE.MeshStandardMaterial({ color: 0x3f6b3a, roughness: 0.8 })
-  );
-  yard.position.copy(pos).setY(1.2);
-  scene.add(yard);
+  storefront(scene, world.city, pos, { name: 'SANITATION', w: 3, d: 2.4, wall: 0x4a6b44, accent: 0x2e7d32, sign: { fg: '#d8ffcf', bg: '#15291a', accent: '#5fd16a' } });
 
   // a pool of bin meshes we show/hide as routes come and go
   const bins = [];

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { placeStreetSite } from './site-layout.js';
+import { storefront } from './propKit.js';
 import { pointBlocked } from './city.js';
 import { showToast, showNews } from './hud.js';
 import { sfxMissionPass } from './sound.js';
@@ -50,18 +51,13 @@ export function initTattoo(scene, world, save) {
   if (pointBlocked(new THREE.Vector3(pos.x, 1, pos.z), world.city.colliders, 1.4)) pos = world.city.spawn.clone().add(new THREE.Vector3(28, 0, 4));
   placeStreetSite(world.city, pos, 2.5, 'tattoo');
 
-  const booth = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 2.4, 2),
-    new THREE.MeshStandardMaterial({ color: 0x1a1520, roughness: 0.7 })
-  );
-  booth.position.copy(pos).setY(1.2);
-  scene.add(booth);
+  const shop = storefront(scene, world.city, pos, { name: 'TATTOO', w: 2.6, d: 2.2, wall: 0x241c2c, accent: 0xff4080, sign: { fg: '#ffd0e0', bg: '#1a0f1c', accent: '#ff4080' } });
   const neon = new THREE.Mesh(
-    new THREE.TorusGeometry(0.5, 0.08, 8, 20),
+    new THREE.TorusGeometry(0.32, 0.05, 8, 20),
     new THREE.MeshBasicMaterial({ color: 0xff4080 })
   );
-  neon.position.copy(pos).add(new THREE.Vector3(0, 2.7, 1.05));
-  scene.add(neon);
+  neon.position.set(shop.w * 0.2, 1.3, shop.d / 2 + 0.12); // glowing in the shop window
+  shop.group.add(neon);
 
   const saved = save?.tattoo ?? null;
   world.tattoo = { pos, neon, open: false, design: saved };
